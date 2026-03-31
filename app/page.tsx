@@ -11,6 +11,7 @@ interface PageProps {
     search?: string
     payment?: string
     shipping?: string
+    type?: string
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
     page?: string
@@ -50,6 +51,7 @@ async function OrdersContent({
     search?: string
     payment?: string
     shipping?: string
+    type?: string
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
     page?: string
@@ -116,7 +118,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   
   return (
     <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 pt-16 lg:pt-8 sm:px-6 lg:px-8">
         <Suspense fallback={<StatsSkeleton />}>
           <StatsContent />
         </Suspense>

@@ -7,6 +7,7 @@ export async function getOrders(filters?: {
   search?: string
   payment?: string
   shipping?: string
+  type?: string
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
   page?: number
@@ -34,6 +35,10 @@ export async function getOrders(filters?: {
 
   if (filters?.shipping) {
     query = query.eq('shipping_status', filters.shipping)
+  }
+
+  if (filters?.type) {
+    query = query.eq('type', filters.type)
   }
 
   // Sorting

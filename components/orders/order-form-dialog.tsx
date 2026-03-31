@@ -21,8 +21,13 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
 import type { Order, OrderInsert } from '@/lib/types/order'
-import { PAYMENT_STATUSES, SHIPPING_STATUSES, PAYMENT_METHODS } from '@/lib/types/order'
-import { PAYMENT_STATUS_LABELS, SHIPPING_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/lib/locale'
+import { PAYMENT_STATUSES, SHIPPING_STATUSES, PAYMENT_METHODS, ORDER_TYPES } from '@/lib/types/order'
+import { 
+  PAYMENT_STATUS_LABELS, 
+  SHIPPING_STATUS_LABELS, 
+  PAYMENT_METHOD_LABELS,
+  ORDER_TYPE_LABELS 
+} from '@/lib/locale'
 import { createOrder, updateOrder } from '@/app/actions/orders'
 
 interface OrderFormDialogProps {
@@ -41,12 +46,15 @@ const emptyForm: OrderInsert = {
   quantity: null,
   unit_price: null,
   total_price: null,
+  cost: null,
+  profit: null,
   supplier: null,
   source: null,
   payment_status: null,
   payment_method: null,
   shipping_status: null,
   note: null,
+  type: 'sale',
 }
 
 export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDialogProps) {
@@ -65,12 +73,15 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
         quantity: order.quantity,
         unit_price: order.unit_price,
         total_price: order.total_price,
+        cost: order.cost,
+        profit: order.profit,
         supplier: order.supplier,
         source: order.source,
         payment_status: order.payment_status,
         payment_method: order.payment_method,
         shipping_status: order.shipping_status,
         note: order.note,
+        type: order.type || 'sale',
       })
     } else if (mode === 'create') {
       setFormData(emptyForm)
@@ -94,15 +105,21 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  // Auto-calculate total price when quantity or unit price changes
+  // Auto-calculate total price and profit
   useEffect(() => {
-    if (formData.quantity !== null && formData.unit_price !== null) {
-      setFormData((prev) => ({
-        ...prev,
-        total_price: (prev.quantity ?? 0) * (prev.unit_price ?? 0),
-      }))
-    }
-  }, [formData.quantity, formData.unit_price])
+    const quantity = formData.quantity ?? 0
+    const unitPrice = formData.unit_price ?? 0
+    const cost = formData.cost ?? 0
+    
+    const total = quantity * unitPrice
+    const profit = total - cost
+    
+    setFormData((prev) => ({
+      ...prev,
+      total_price: total || null,
+      profit: cost > 0 ? profit : null,
+    }))
+  }, [formData.quantity, formData.unit_price, formData.cost])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -112,7 +129,26 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <FieldGroup className="space-y-4">
+            {/* Type and Date Row */}
             <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>交易類型</FieldLabel>
+                <Select
+                  value={formData.type || 'sale'}
+                  onValueChange={(value) => updateField('type', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="選擇類型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ORDER_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {ORDER_TYPE_LABELS[type]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
               <Field>
                 <FieldLabel>日期</FieldLabel>
                 <Input
@@ -121,12 +157,23 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                   onChange={(e) => updateField('date', e.target.value || null)}
                 />
               </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel>批次</FieldLabel>
                 <Input
                   placeholder="輸入批次編號"
                   value={formData.batch || ''}
                   onChange={(e) => updateField('batch', e.target.value || null)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel>來源</FieldLabel>
+                <Input
+                  placeholder="輸入訂單來源"
+                  value={formData.source || ''}
+                  onChange={(e) => updateField('source', e.target.value || null)}
                 />
               </Field>
             </div>
@@ -169,7 +216,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
               </Field>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel>數量</FieldLabel>
                 <Input
@@ -188,25 +235,39 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                   onChange={(e) => updateField('unit_price', e.target.value ? parseInt(e.target.value) : null)}
                 />
               </Field>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <Field>
+                <FieldLabel>成本 (NT$)</FieldLabel>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={formData.cost ?? ''}
+                  onChange={(e) => updateField('cost', e.target.value ? parseInt(e.target.value) : null)}
+                />
+              </Field>
               <Field>
                 <FieldLabel>總價 (NT$)</FieldLabel>
                 <Input
                   type="number"
                   placeholder="自動計算"
                   value={formData.total_price ?? ''}
-                  onChange={(e) => updateField('total_price', e.target.value ? parseInt(e.target.value) : null)}
+                  readOnly
+                  className="bg-muted"
+                />
+              </Field>
+              <Field>
+                <FieldLabel>利潤 (NT$)</FieldLabel>
+                <Input
+                  type="number"
+                  placeholder="自動計算"
+                  value={formData.profit ?? ''}
+                  readOnly
+                  className="bg-muted"
                 />
               </Field>
             </div>
-
-            <Field>
-              <FieldLabel>來源</FieldLabel>
-              <Input
-                placeholder="輸入訂單來源"
-                value={formData.source || ''}
-                onChange={(e) => updateField('source', e.target.value || null)}
-              />
-            </Field>
 
             <div className="grid grid-cols-3 gap-4">
               <Field>

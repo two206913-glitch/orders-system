@@ -15,6 +15,7 @@ import {
   getPaymentStatusLabel,
   getShippingStatusLabel,
   getPaymentMethodLabel,
+  getOrderTypeLabel,
 } from '@/lib/locale'
 import { Calendar, Package, User, Truck, CreditCard, FileText, Clock } from 'lucide-react'
 
@@ -106,8 +107,19 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
         <div className="space-y-6 pt-2">
           {/* 基本資訊 */}
           <div className="grid grid-cols-2 gap-4">
+            <DetailItem label="交易類型" value={
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                order.type === 'sale' ? 'bg-success/10 text-success' :
+                order.type === 'purchase' ? 'bg-primary/10 text-primary' :
+                order.type === 'sale_return' ? 'bg-warning/10 text-warning' :
+                'bg-destructive/10 text-destructive'
+              }`}>
+                {getOrderTypeLabel(order.type)}
+              </span>
+            } />
             <DetailItem icon={Calendar} label="日期" value={formatDateLong(order.date)} />
             <DetailItem label="批次" value={order.batch || '-'} />
+            <DetailItem label="來源" value={order.source || '-'} />
             <DetailItem icon={User} label="客戶" value={order.customer_name || '-'} />
             <DetailItem label="供應商" value={order.supplier || '-'} />
           </div>
@@ -122,10 +134,23 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
             <DetailItem label="單價" value={formatCurrency(order.unit_price)} />
           </div>
 
-          <div className="rounded-lg bg-muted/50 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-muted-foreground">總金額</span>
-              <span className="text-2xl font-bold text-foreground">{formatCurrency(order.total_price)}</span>
+          {/* 金額資訊 */}
+          <div className="rounded-lg bg-muted/50 p-4 space-y-3">
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">成本</span>
+                <p className="font-medium">{formatCurrency(order.cost)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">總價</span>
+                <p className="font-medium">{formatCurrency(order.total_price)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">利潤</span>
+                <p className={`font-medium ${(order.profit ?? 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
+                  {formatCurrency(order.profit)}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -134,7 +159,7 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
           {/* 付款與出貨資訊 */}
           <div className="grid grid-cols-2 gap-4">
             <DetailItem icon={CreditCard} label="付款方式" value={getPaymentMethodLabel(order.payment_method)} />
-            <DetailItem icon={Truck} label="來源" value={order.source || '-'} />
+            <DetailItem icon={Truck} label="出貨狀態" value={getShippingStatusLabel(order.shipping_status)} />
           </div>
 
           {/* 備註 */}

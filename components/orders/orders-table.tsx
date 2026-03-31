@@ -21,7 +21,7 @@ import {
 import { Empty } from '@/components/ui/empty'
 import { MoreHorizontal, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, Package, Plus } from 'lucide-react'
 import type { Order } from '@/lib/types/order'
-import { formatCurrency, formatDate } from '@/lib/locale'
+import { formatCurrency, formatDate, getOrderTypeLabel } from '@/lib/locale'
 import { OrderFormDialog } from './order-form-dialog'
 import { DeleteOrderDialog } from './delete-order-dialog'
 import { ViewOrderDialog } from './view-order-dialog'
@@ -76,6 +76,7 @@ export function OrdersTable({ orders, total, currentPage, pageSize }: OrdersTabl
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent border-border bg-muted/40">
+              <TableHead className="text-muted-foreground font-semibold text-xs uppercase tracking-wide">類型</TableHead>
               <TableHead className="text-muted-foreground">
                 <button
                   onClick={() => handleSort('date')}
@@ -85,8 +86,7 @@ export function OrdersTable({ orders, total, currentPage, pageSize }: OrdersTabl
                   <SortIcon column="date" />
                 </button>
               </TableHead>
-              <TableHead className="text-muted-foreground font-semibold text-xs uppercase tracking-wide">批次</TableHead>
-              <TableHead className="text-muted-foreground font-semibold text-xs uppercase tracking-wide">客戶</TableHead>
+              <TableHead className="text-muted-foreground font-semibold text-xs uppercase tracking-wide">客戶/供應商</TableHead>
               <TableHead className="text-muted-foreground font-semibold text-xs uppercase tracking-wide">產品</TableHead>
               <TableHead className="text-muted-foreground text-right font-semibold text-xs uppercase tracking-wide">數量</TableHead>
               <TableHead className="text-muted-foreground text-right">
@@ -106,7 +106,7 @@ export function OrdersTable({ orders, total, currentPage, pageSize }: OrdersTabl
           <TableBody>
             {orders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="h-64">
+                <TableCell colSpan={10} className="h-64">
                   <Empty
                     icon={Package}
                     title="尚無訂單資料"
@@ -120,11 +120,25 @@ export function OrdersTable({ orders, total, currentPage, pageSize }: OrdersTabl
                 </TableCell>
               </TableRow>
             ) : (
-              orders.map((order) => (
+              orders.map((order) => {
+                const type = order.type || 'sale'
+                const isSale = type === 'sale' || type === 'sale_return'
+                const counterparty = isSale ? order.customer_name : order.supplier
+                
+                return (
                 <TableRow key={order.id} className="border-border hover:bg-muted/30 transition-colors group">
+                  <TableCell>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                      type === 'sale' ? 'bg-success/10 text-success' :
+                      type === 'purchase' ? 'bg-primary/10 text-primary' :
+                      type === 'sale_return' ? 'bg-warning/10 text-warning' :
+                      'bg-destructive/10 text-destructive'
+                    }`}>
+                      {getOrderTypeLabel(type)}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-foreground font-medium">{formatDate(order.date)}</TableCell>
-                  <TableCell className="text-muted-foreground">{order.batch || '-'}</TableCell>
-                  <TableCell className="text-foreground font-medium">{order.customer_name || '-'}</TableCell>
+                  <TableCell className="text-foreground font-medium">{counterparty || '-'}</TableCell>
                   <TableCell className="text-foreground">{order.product_name || '-'}</TableCell>
                   <TableCell className="text-foreground text-right tabular-nums">{order.quantity?.toLocaleString('zh-TW') ?? '-'}</TableCell>
                   <TableCell className="text-foreground text-right font-semibold tabular-nums">{formatCurrency(order.total_price)}</TableCell>
@@ -171,7 +185,7 @@ export function OrdersTable({ orders, total, currentPage, pageSize }: OrdersTabl
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))
+              )})
             )}
           </TableBody>
         </Table>

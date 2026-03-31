@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { AuthProvider } from '@/components/providers/auth-provider'
+import { AppShell } from '@/components/layout/app-shell'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -37,7 +39,9 @@ export default function RootLayout({
   return (
     <html lang="zh-TW">
       <body className="font-sans antialiased">
-        {children}
+        <AuthProvider>
+          <AppShell>{children}</AppShell>
+        </AuthProvider>
         <Analytics />
       </body>
     </html>

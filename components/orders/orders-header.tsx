@@ -13,8 +13,8 @@ import {
 import { Plus, Search } from 'lucide-react'
 import { OrderFormDialog } from './order-form-dialog'
 import { ExportButton } from './export-button'
-import { PAYMENT_STATUSES, SHIPPING_STATUSES, type Order } from '@/lib/types/order'
-import { PAYMENT_STATUS_LABELS, SHIPPING_STATUS_LABELS } from '@/lib/locale'
+import { PAYMENT_STATUSES, SHIPPING_STATUSES, ORDER_TYPES, type Order } from '@/lib/types/order'
+import { PAYMENT_STATUS_LABELS, SHIPPING_STATUS_LABELS, ORDER_TYPE_LABELS } from '@/lib/locale'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 interface OrdersHeaderProps {
@@ -59,6 +59,17 @@ export function OrdersHeader({ orders }: OrdersHeaderProps) {
     router.push(`?${params.toString()}`)
   }
 
+  const handleTypeFilter = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (value && value !== 'all') {
+      params.set('type', value)
+    } else {
+      params.delete('type')
+    }
+    params.set('page', '1')
+    router.push(`?${params.toString()}`)
+  }
+
   return (
     <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -88,10 +99,26 @@ export function OrdersHeader({ orders }: OrdersHeaderProps) {
           />
         </div>
         <Select
+          defaultValue={searchParams.get('type') || 'all'}
+          onValueChange={handleTypeFilter}
+        >
+          <SelectTrigger className="w-[120px] shadow-sm">
+            <SelectValue placeholder="交易類型" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部類型</SelectItem>
+            {ORDER_TYPES.map((type) => (
+              <SelectItem key={type} value={type}>
+                {ORDER_TYPE_LABELS[type]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
           defaultValue={searchParams.get('payment') || 'all'}
           onValueChange={handlePaymentFilter}
         >
-          <SelectTrigger className="w-[140px] shadow-sm">
+          <SelectTrigger className="w-[120px] shadow-sm">
             <SelectValue placeholder="付款狀態" />
           </SelectTrigger>
           <SelectContent>
@@ -107,7 +134,7 @@ export function OrdersHeader({ orders }: OrdersHeaderProps) {
           defaultValue={searchParams.get('shipping') || 'all'}
           onValueChange={handleShippingFilter}
         >
-          <SelectTrigger className="w-[140px] shadow-sm">
+          <SelectTrigger className="w-[120px] shadow-sm">
             <SelectValue placeholder="出貨狀態" />
           </SelectTrigger>
           <SelectContent>

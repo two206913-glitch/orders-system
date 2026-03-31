@@ -40,6 +40,13 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   check: '支票',
 }
 
+export const ORDER_TYPE_LABELS: Record<string, string> = {
+  sale: '銷售',
+  purchase: '進貨',
+  sale_return: '銷退',
+  purchase_return: '退貨',
+}
+
 export function getPaymentStatusLabel(status: string | null): string {
   if (!status) return '-'
   return PAYMENT_STATUS_LABELS[status.toLowerCase()] || status
@@ -53,4 +60,9 @@ export function getShippingStatusLabel(status: string | null): string {
 export function getPaymentMethodLabel(method: string | null): string {
   if (!method) return '-'
   return PAYMENT_METHOD_LABELS[method.toLowerCase()] || method
+}
+
+export function getOrderTypeLabel(type: string | null): string {
+  if (!type) return '-'
+  return ORDER_TYPE_LABELS[type.toLowerCase()] || type
 }
