@@ -18,7 +18,7 @@ export default async function InventoryPage() {
   const totalProducts = inventory.length
   const lowStock = inventory.filter((i) => i.current_stock > 0 && i.current_stock < 10)
   const outOfStock = inventory.filter((i) => i.current_stock <= 0)
-  const totalValue = inventory.reduce((sum, i) => sum + i.current_stock * i.avg_cost, 0)
+  const totalValue = inventory.reduce((sum, i) => sum + i.total_value, 0)
 
   return (
     <div className="p-6 pt-16 lg:pt-6 space-y-6">
@@ -105,6 +105,7 @@ export default async function InventoryPage() {
                   <TableHead className="text-right">出貨數量</TableHead>
                   <TableHead className="text-right">現有庫存</TableHead>
                   <TableHead className="text-right">平均成本</TableHead>
+                  <TableHead className="text-right">庫存價值</TableHead>
                   <TableHead>狀態</TableHead>
                 </TableRow>
               </TableHeader>
@@ -117,6 +118,7 @@ export default async function InventoryPage() {
                     <TableCell className="text-right">{item.total_out}</TableCell>
                     <TableCell className="text-right font-medium">{item.current_stock}</TableCell>
                     <TableCell className="text-right">{formatCurrency(item.avg_cost)}</TableCell>
+                    <TableCell className="text-right font-medium">{formatCurrency(item.total_value)}</TableCell>
                     <TableCell>
                       {item.current_stock <= 0 ? (
                         <Badge variant="destructive">缺貨</Badge>
