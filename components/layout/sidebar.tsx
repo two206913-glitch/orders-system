@@ -14,12 +14,16 @@ import {
   LogOut,
   Menu,
   X,
+  ArrowDownRight,
+  ArrowUpRight,
 } from 'lucide-react'
 import { useState } from 'react'
 
 const navigation = [
   { name: '訂單管理', href: '/', icon: ShoppingCart },
   { name: '庫存管理', href: '/inventory', icon: Warehouse },
+  { name: '收款管理', href: '/receipts', icon: ArrowDownRight },
+  { name: '付款管理', href: '/payments', icon: ArrowUpRight },
   { name: '應收應付', href: '/finance', icon: DollarSign },
   { name: '月份統計', href: '/stats', icon: BarChart3 },
 ]

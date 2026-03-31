@@ -10,7 +10,10 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { DollarSign, TrendingUp, TrendingDown, Users } from 'lucide-react'
+import { DollarSign, TrendingUp, TrendingDown, Users, ArrowDownRight, ArrowUpRight } from 'lucide-react'
+import Link from 'next/link'
+
+export const dynamic = 'force-dynamic'
 
 export default async function FinancePage() {
   const { receivables, payables, totals } = await getReceivablesPayables()
@@ -18,12 +21,12 @@ export default async function FinancePage() {
   return (
     <div className="p-6 pt-16 lg:pt-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">應收應付</h1>
-        <p className="text-muted-foreground">管理客戶應收帳款與供應商應付帳款</p>
+        <h1 className="text-2xl font-bold">應收應付總覽</h1>
+        <p className="text-muted-foreground">查看客戶應收帳款與供應商應付帳款，並追蹤收付款進度</p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
@@ -65,6 +68,36 @@ export default async function FinancePage() {
             </div>
           </CardContent>
         </Card>
+        <Link href="/receipts">
+          <Card className="hover:border-success/50 transition-colors cursor-pointer h-full">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-success/10 rounded-lg">
+                  <ArrowDownRight className="h-5 w-5 text-success" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">已收款</p>
+                  <p className="text-2xl font-bold text-success">{formatCurrency(totals.totalReceipts)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/payments">
+          <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <ArrowUpRight className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">已付款</p>
+                  <p className="text-2xl font-bold text-primary">{formatCurrency(totals.totalPayments)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -87,15 +120,17 @@ export default async function FinancePage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>客戶名稱</TableHead>
-                    <TableHead className="text-right">訂單數</TableHead>
-                    <TableHead className="text-right">待收金額</TableHead>
+                    <TableHead className="text-right">應收</TableHead>
+                    <TableHead className="text-right">已收</TableHead>
+                    <TableHead className="text-right">待收</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {receivables.map((item, index) => (
                     <TableRow key={index}>
                       <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell className="text-right">{item.order_count}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{formatCurrency(item.total_amount)}</TableCell>
+                      <TableCell className="text-right text-success">{formatCurrency(item.received_amount)}</TableCell>
                       <TableCell className="text-right">
                         <Badge variant="outline" className="font-mono">
                           {formatCurrency(item.pending_amount)}
@@ -128,15 +163,17 @@ export default async function FinancePage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>供應商名稱</TableHead>
-                    <TableHead className="text-right">訂單數</TableHead>
-                    <TableHead className="text-right">待付金額</TableHead>
+                    <TableHead className="text-right">應付</TableHead>
+                    <TableHead className="text-right">已付</TableHead>
+                    <TableHead className="text-right">待付</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {payables.map((item, index) => (
                     <TableRow key={index}>
                       <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell className="text-right">{item.order_count}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{formatCurrency(item.total_amount)}</TableCell>
+                      <TableCell className="text-right text-primary">{formatCurrency(item.received_amount)}</TableCell>
                       <TableCell className="text-right">
                         <Badge variant="outline" className="font-mono text-destructive">
                           {formatCurrency(item.pending_amount)}
