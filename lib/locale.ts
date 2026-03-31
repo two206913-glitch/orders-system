@@ -66,3 +66,13 @@ export function getOrderTypeLabel(type: string | null): string {
   if (!type) return '-'
   return ORDER_TYPE_LABELS[type.toLowerCase()] || type
 }
+
+export const PAYMENT_TYPE_LABELS: Record<string, string> = {
+  receipt: '收款',
+  payment: '付款',
+}
+
+export function getPaymentTypeLabel(type: string | null): string {
+  if (!type) return '-'
+  return PAYMENT_TYPE_LABELS[type.toLowerCase()] || type
+}
