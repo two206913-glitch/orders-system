@@ -28,24 +28,35 @@ interface PaymentFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   payment?: Payment | null
+  type?: 'receipt' | 'payment'
   defaultType?: 'receipt' | 'payment'
   defaultParty?: string
+  defaultPartyName?: string
+  suggestedAmount?: number
+  onSuccess?: () => void
 }
 
 export function PaymentFormDialog({
   open,
   onOpenChange,
   payment,
+  type,
   defaultType = 'receipt',
   defaultParty = '',
+  defaultPartyName = '',
+  suggestedAmount,
+  onSuccess,
 }: PaymentFormDialogProps) {
   const router = useRouter()
   const isEditing = !!payment
 
+  const effectiveType = type || defaultType
+  const effectiveParty = defaultPartyName || defaultParty
+  
   const [formData, setFormData] = useState<PaymentInsert>({
-    type: defaultType,
-    party_name: defaultParty,
-    amount: 0,
+    type: effectiveType,
+    party_name: effectiveParty,
+    amount: suggestedAmount || 0,
     payment_method: null,
     date: new Date().toISOString().split('T')[0],
     note: null,
@@ -64,15 +75,15 @@ export function PaymentFormDialog({
       })
     } else {
       setFormData({
-        type: defaultType,
-        party_name: defaultParty,
-        amount: 0,
+        type: effectiveType,
+        party_name: effectiveParty,
+        amount: suggestedAmount || 0,
         payment_method: null,
         date: new Date().toISOString().split('T')[0],
         note: null,
       })
     }
-  }, [payment, defaultType, defaultParty, open])
+  }, [payment, effectiveType, effectiveParty, suggestedAmount, open])
 
   const updateField = <K extends keyof PaymentInsert>(
     field: K,
@@ -92,7 +103,11 @@ export function PaymentFormDialog({
         await createPayment(formData)
       }
       onOpenChange(false)
-      router.refresh()
+      if (onSuccess) {
+        onSuccess()
+      } else {
+        router.refresh()
+      }
     } catch (error) {
       console.error('Failed to save payment:', error)
     } finally {

@@ -16,14 +16,18 @@ import {
   X,
   ArrowDownRight,
   ArrowUpRight,
+  FileText,
+  Receipt,
 } from 'lucide-react'
 import { useState } from 'react'
 
 const navigation = [
   { name: '訂單管理', href: '/', icon: ShoppingCart },
   { name: '庫存管理', href: '/inventory', icon: Warehouse },
-  { name: '收款管理', href: '/receipts', icon: ArrowDownRight },
-  { name: '付款管理', href: '/payments', icon: ArrowUpRight },
+  { name: '請款單', href: '/invoices/customer', icon: FileText },
+  { name: '付款單', href: '/invoices/supplier', icon: Receipt },
+  { name: '收款紀錄', href: '/receipts', icon: ArrowDownRight },
+  { name: '付款紀錄', href: '/payments', icon: ArrowUpRight },
   { name: '應收應付', href: '/finance', icon: DollarSign },
   { name: '月份統計', href: '/stats', icon: BarChart3 },
 ]
