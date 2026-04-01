@@ -87,6 +87,25 @@ export async function deletePayment(id: string) {
   }
 }
 
+// 取得特定對象的收付款紀錄
+export async function getPaymentsByParty(partyName: string, type: 'receipt' | 'payment') {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('party_name', partyName)
+    .eq('type', type)
+    .order('date', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching payments by party:', error)
+    return []
+  }
+
+  return data || []
+}
+
 // 取得收付款總計
 export async function getPaymentTotals() {
   const supabase = await createClient()

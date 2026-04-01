@@ -32,6 +32,7 @@ import {
 } from '@/app/actions/invoices'
 import { PaymentFormDialog } from '@/components/payments/payment-form-dialog'
 import { InvoiceDocument } from '@/components/invoices/invoice-document'
+import { PaymentHistoryDialog } from '@/components/invoices/payment-history-dialog'
 
 export default function SupplierInvoicePage() {
   const router = useRouter()
@@ -53,6 +54,7 @@ export default function SupplierInvoicePage() {
   const [loading, setLoading] = useState(false)
   const [showPaymentDialog, setShowPaymentDialog] = useState(false)
   const [showInvoiceDoc, setShowInvoiceDoc] = useState(false)
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false)
   
   // 初始化日期（預設本月）
   useEffect(() => {
@@ -95,6 +97,18 @@ export default function SupplierInvoicePage() {
     if (!invoice) return
     
     const BOM = '\uFEFF'
+    
+    // 標題資訊
+    const titleRows = [
+      ['付款單'],
+      [],
+      ['供應商名稱', invoice.supplier_name],
+      ['期間', `${formatDate(invoice.date_from)} 至 ${formatDate(invoice.date_to)}`],
+      ['製單日期', formatDate(new Date().toISOString())],
+      ['狀態', invoice.is_settled ? '已結清' : '未結清'],
+      [],
+    ]
+    
     const headers = ['日期', '類型', '商品名稱', '規格', '數量', '單件成本', '金額']
     const rows = invoice.items.map(item => [
       formatDate(item.date),
@@ -107,17 +121,23 @@ export default function SupplierInvoicePage() {
     ])
     
     // 加入彙總行
-    rows.push([])
-    rows.push(['', '', '', '', '', '進貨小計', invoice.purchase_total.toString()])
-    rows.push(['', '', '', '', '', '進退合計', (-invoice.return_total).toString()])
-    rows.push(['', '', '', '', '', '應付總額', invoice.net_total.toString()])
-    rows.push(['', '', '', '', '', '已付金額', invoice.paid_amount.toString()])
-    rows.push(['', '', '', '', '', '未付金額', invoice.pending_amount.toString()])
+    const summaryRows = [
+      [],
+      ['', '', '', '', '', '進貨小計', invoice.purchase_total.toString()],
+      ['', '', '', '', '', '進退合計', (-invoice.return_total).toString()],
+      ['', '', '', '', '', '應付總額', invoice.net_total.toString()],
+      ['', '', '', '', '', '已付金額', invoice.paid_amount.toString()],
+      ['', '', '', '', '', '未付金額', invoice.pending_amount.toString()],
+    ]
     
-    const csvContent = BOM + [
-      headers.join(','),
+    const allRows = [
+      ...titleRows.map(row => row.map(cell => `"${cell}"`).join(',')),
+      headers.map(cell => `"${cell}"`).join(','),
       ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
-    ].join('\n')
+      ...summaryRows.map(row => row.map(cell => `"${cell}"`).join(',')),
+    ]
+    
+    const csvContent = BOM + allRows.join('\n')
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -301,9 +321,14 @@ export default function SupplierInvoicePage() {
                 <CardContent className="pt-6">
                   <h4 className="font-semibold mb-4">付款狀態</h4>
                   <div className="space-y-2">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">累計已付</span>
-                      <span className="font-medium text-success">{formatCurrency(invoice.paid_amount)}</span>
+                      <button
+                        onClick={() => setShowHistoryDialog(true)}
+                        className="font-medium text-success hover:underline cursor-pointer"
+                      >
+                        {formatCurrency(invoice.paid_amount)}
+                      </button>
                     </div>
                     <div className="border-t pt-2 flex justify-between">
                       <span className="font-semibold">未付金額</span>
@@ -375,9 +400,16 @@ export default function SupplierInvoicePage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
+                        onClick={async () => {
                           setSelectedSupplier(p.supplier_name)
-                          handleGenerateInvoice()
+                          // 直接取得付款單資料
+                          setLoading(true)
+                          try {
+                            const data = await getSupplierInvoice(p.supplier_name, dateFrom, dateTo)
+                            setInvoice(data)
+                          } finally {
+                            setLoading(false)
+                          }
                         }}
                       >
                         查看付款單
@@ -410,6 +442,17 @@ export default function SupplierInvoicePage() {
           onOpenChange={setShowInvoiceDoc}
           type="supplier"
           data={invoice}
+        />
+      )}
+
+      {/* 付款紀錄 */}
+      {showHistoryDialog && invoice && (
+        <PaymentHistoryDialog
+          open={showHistoryDialog}
+          onOpenChange={setShowHistoryDialog}
+          partyName={invoice.supplier_name}
+          type="payment"
+          onRefresh={handlePaymentSuccess}
         />
       )}
     </div>
