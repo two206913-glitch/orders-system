@@ -135,3 +135,42 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Print styles for invoices */
+@media print {
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+  
+  body {
+    background: white !important;
+    color: black !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+  
+  .invoice-document {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .invoice-document table {
+    page-break-inside: avoid;
+  }
+  
+  .invoice-document tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+}
