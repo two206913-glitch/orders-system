@@ -23,6 +23,7 @@ import { useState } from 'react'
 
 const navigation = [
   { name: '訂單管理', href: '/', icon: ShoppingCart },
+  { name: '商品管理', href: '/products', icon: Package },
   { name: '庫存管理', href: '/inventory', icon: Warehouse },
   { name: '請款單', href: '/invoices/customer', icon: FileText },
   { name: '付款單', href: '/invoices/supplier', icon: Receipt },

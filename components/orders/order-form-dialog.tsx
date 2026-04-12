@@ -29,6 +29,7 @@ import {
   ORDER_TYPE_LABELS 
 } from '@/lib/locale'
 import { createOrder, updateOrder } from '@/app/actions/orders'
+import { ProductSelector } from './product-selector'
 
 interface OrderFormDialogProps {
   open: boolean
@@ -61,6 +62,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [formData, setFormData] = useState<OrderInsert>(emptyForm)
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
 
   useEffect(() => {
     if (order && mode === 'edit') {
@@ -103,6 +105,36 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
 
   const updateField = <K extends keyof OrderInsert>(field: K, value: OrderInsert[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  // 處理商品選擇
+  const handleProductSelect = (product: {
+    id: string
+    name: string
+    variant: string | null
+    cost: number
+    price: number
+    supplier: string | null
+    unit: string | null
+    stock: number
+  } | null) => {
+    if (product) {
+      setSelectedProductId(product.id)
+      const type = formData.type || 'sale'
+      const isSale = type === 'sale' || type === 'sale_return'
+      
+      setFormData((prev) => ({
+        ...prev,
+        product_name: product.name,
+        spec: product.variant,
+        supplier: product.supplier || prev.supplier,
+        unit_price: isSale ? product.price : product.cost,
+        // 進貨時自動帶入成本
+        cost: !isSale ? product.cost : prev.cost,
+      }))
+    } else {
+      setSelectedProductId(null)
+    }
   }
 
   // Auto-calculate total price and profit
@@ -217,6 +249,19 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                 />
               </Field>
             </div>
+
+            {/* 商品選擇器 */}
+            <Field>
+              <FieldLabel>選擇商品</FieldLabel>
+              <ProductSelector
+                value={selectedProductId}
+                onChange={handleProductSelect}
+                orderType={formData.type || 'sale'}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                選擇商品後自動帶入名稱、規格與價格
+              </p>
+            </Field>
 
             <div className="grid grid-cols-2 gap-4">
               <Field>
