@@ -76,3 +76,19 @@ export function getPaymentTypeLabel(type: string | null): string {
   if (!type) return '-'
   return PAYMENT_TYPE_LABELS[type.toLowerCase()] || type
 }
+
+export const STOCK_STATUS_LABELS: Record<string, string> = {
+  normal: '正常',
+  low: '不足',
+  out: '缺貨',
+}
+
+export function getStockStatus(stock: number, minStock: number): 'normal' | 'low' | 'out' {
+  if (stock <= 0) return 'out'
+  if (stock <= minStock) return 'low'
+  return 'normal'
+}
+
+export function getStockStatusLabel(status: string): string {
+  return STOCK_STATUS_LABELS[status] || status
+}
