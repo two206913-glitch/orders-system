@@ -10,7 +10,9 @@ export interface InvoiceItem {
   spec: string | null
   quantity: number
   unit_price: number
+  shipping_fee: number
   amount: number
+  note: string | null
 }
 
 export interface CustomerInvoice {
@@ -18,7 +20,8 @@ export interface CustomerInvoice {
   date_from: string
   date_to: string
   items: InvoiceItem[]
-  sale_total: number      // 銷貨小計
+  sale_total: number      // 銷貨小計（含運費）
+  shipping_total: number  // 運費合計
   return_total: number    // 銷退合計
   net_total: number       // 應收總額（淨額）
   received_amount: number // 已收金額
@@ -31,7 +34,8 @@ export interface SupplierInvoice {
   date_from: string
   date_to: string
   items: InvoiceItem[]
-  purchase_total: number  // 進貨小計
+  purchase_total: number  // 進貨小計（含運費）
+  shipping_total: number  // 運費合計
   return_total: number    // 進退合計
   net_total: number       // 應付總額（淨額）
   paid_amount: number     // 已付金額
@@ -78,7 +82,7 @@ export async function getCustomerInvoice(
   // 取得該客戶在日期區間內的銷貨和銷退訂單
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, date, type, product_name, spec, quantity, unit_price, total_price')
+    .select('id, date, type, product_name, spec, quantity, unit_price, shipping_fee, total_price, note')
     .eq('customer_name', customerName)
     .in('type', ['sale', 'sale_return'])
     .gte('date', dateFrom)
@@ -107,13 +111,19 @@ export async function getCustomerInvoice(
     spec: order.spec,
     quantity: order.type === 'sale_return' ? -(order.quantity || 0) : (order.quantity || 0),
     unit_price: order.unit_price || 0,
+    shipping_fee: order.type === 'sale_return' ? -(order.shipping_fee || 0) : (order.shipping_fee || 0),
     amount: order.type === 'sale_return' ? -(order.total_price || 0) : (order.total_price || 0),
+    note: order.note,
   }))
   
   // 計算該期間的銷貨和銷退
   const sale_total = items
     .filter(i => i.type === 'sale')
     .reduce((sum, i) => sum + i.amount, 0)
+  
+  const shipping_total = items
+    .filter(i => i.type === 'sale')
+    .reduce((sum, i) => sum + i.shipping_fee, 0)
   
   const return_total = items
     .filter(i => i.type === 'sale_return')
@@ -139,6 +149,7 @@ export async function getCustomerInvoice(
     date_to: dateTo,
     items,
     sale_total,
+    shipping_total,
     return_total,
     net_total,
     received_amount,
@@ -158,7 +169,7 @@ export async function getSupplierInvoice(
   // 取得該供應商在日期區間內的進貨和進退訂單
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, date, type, product_name, spec, quantity, unit_price, cost')
+    .select('id, date, type, product_name, spec, quantity, unit_price, shipping_fee, cost, note')
     .eq('supplier', supplierName)
     .in('type', ['purchase', 'purchase_return'])
     .gte('date', dateFrom)
@@ -183,6 +194,7 @@ export async function getSupplierInvoice(
     const qty = order.quantity || 0
     const cost = order.cost || 0
     const unitCost = qty > 0 ? Math.round(cost / qty) : 0
+    const shippingFee = order.shipping_fee || 0
     
     return {
       id: order.id,
@@ -192,7 +204,9 @@ export async function getSupplierInvoice(
       spec: order.spec,
       quantity: order.type === 'purchase_return' ? -qty : qty,
       unit_price: unitCost,
+      shipping_fee: order.type === 'purchase_return' ? -shippingFee : shippingFee,
       amount: order.type === 'purchase_return' ? -cost : cost,
+      note: order.note,
     }
   })
   
@@ -200,6 +214,10 @@ export async function getSupplierInvoice(
   const purchase_total = items
     .filter(i => i.type === 'purchase')
     .reduce((sum, i) => sum + i.amount, 0)
+  
+  const shipping_total = items
+    .filter(i => i.type === 'purchase')
+    .reduce((sum, i) => sum + i.shipping_fee, 0)
   
   const return_total = items
     .filter(i => i.type === 'purchase_return')
@@ -225,6 +243,7 @@ export async function getSupplierInvoice(
     date_to: dateTo,
     items,
     purchase_total,
+    shipping_total,
     return_total,
     net_total,
     paid_amount,

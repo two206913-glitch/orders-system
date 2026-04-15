@@ -136,13 +136,17 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
 
           {/* 金額資訊 */}
           <div className="rounded-lg bg-muted/50 p-4 space-y-3">
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-4 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">成本</span>
                 <p className="font-medium">{formatCurrency(order.cost)}</p>
               </div>
               <div>
-                <span className="text-muted-foreground">總價</span>
+                <span className="text-muted-foreground">運費</span>
+                <p className="font-medium">{formatCurrency(order.shipping_fee)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">總金額</span>
                 <p className="font-medium">{formatCurrency(order.total_price)}</p>
               </div>
               <div>

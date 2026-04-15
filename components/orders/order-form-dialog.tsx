@@ -54,6 +54,7 @@ const emptyForm: OrderInsert = {
   payment_status: null,
   payment_method: null,
   shipping_status: null,
+  shipping_fee: null,
   note: null,
   type: 'sale',
 }
@@ -82,6 +83,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
         payment_status: order.payment_status,
         payment_method: order.payment_method,
         shipping_status: order.shipping_status,
+        shipping_fee: order.shipping_fee,
         note: order.note,
         type: order.type || 'sale',
       })
@@ -142,16 +144,23 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
     const quantity = formData.quantity ?? 0
     const unitPrice = formData.unit_price ?? 0
     const cost = formData.cost ?? 0
+    const shippingFee = formData.shipping_fee ?? 0
     const type = formData.type || 'sale'
     
-    const total = quantity * unitPrice
+    // 商品金額 = 數量 × 單價
+    const subtotal = quantity * unitPrice
+    // 總金額 = 商品金額 + 運費
+    const total = subtotal + shippingFee
     
     // 利潤計算邏輯：
-    // - 銷貨/銷退：利潤 = 總價 - 成本
-    // - 進貨/進退：不計算利潤（利潤欄位留空）
+    // - 銷貨：利潤 = 總價 - 成本（成本包含商品成本）
+    // - 銷貨退回：利潤為負數（退還）
+    // - 進貨/進貨退回：不計算利潤
     let profit: number | null = null
-    if (type === 'sale' || type === 'sale_return') {
+    if (type === 'sale') {
       profit = cost > 0 ? total - cost : null
+    } else if (type === 'sale_return') {
+      profit = cost > 0 ? -(total - cost) : null
     }
     
     setFormData((prev) => ({
@@ -159,7 +168,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
       total_price: total || null,
       profit,
     }))
-  }, [formData.quantity, formData.unit_price, formData.cost, formData.type])
+  }, [formData.quantity, formData.unit_price, formData.cost, formData.shipping_fee, formData.type])
   
   // 根據交易類型決定顯示的欄位提示
   const orderType = formData.type || 'sale'
@@ -303,7 +312,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
               </Field>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel>
                   成本 (NT$)
@@ -317,11 +326,26 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                   className={isPurchaseType ? 'border-primary/50' : ''}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  {isPurchaseType ? '進貨總成本，用於計算平均成本' : '銷貨成本，用於計算利潤'}
+                  {isPurchaseType ? '進貨總成本' : '銷貨成本'}
                 </p>
               </Field>
               <Field>
-                <FieldLabel>總價 (NT$)</FieldLabel>
+                <FieldLabel>運費 (NT$)</FieldLabel>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={formData.shipping_fee ?? ''}
+                  onChange={(e) => updateField('shipping_fee', e.target.value ? parseInt(e.target.value) : null)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  運費會加入總金額
+                </p>
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>總金額 (NT$)</FieldLabel>
                 <Input
                   type="number"
                   placeholder="自動計算"
@@ -330,7 +354,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                   className="bg-muted"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  數量 × 單價
+                  (數量 × 單價) + 運費
                 </p>
               </Field>
               <Field>
@@ -343,7 +367,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                   className="bg-muted"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  {isSaleType ? '總價 - 成本' : '進貨不計算利潤'}
+                  {isSaleType ? '總金額 - 成本' : '進貨不計算利潤'}
                 </p>
               </Field>
             </div>

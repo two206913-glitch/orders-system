@@ -9,7 +9,9 @@ export interface MonthlyStats {
   sales_count: number       // 銷貨筆數
   purchase_count: number    // 進貨筆數
   sales_revenue: number     // 銷售營收（銷貨 - 銷退）
+  sales_shipping: number    // 銷售運費
   purchase_cost: number     // 進貨成本（進貨 - 進退，使用 cost 欄位）
+  purchase_shipping: number // 進貨運費
   profit: number            // 利潤
   top_products: { name: string; quantity: number; revenue: number }[]
   top_customers: { name: string; orders: number; revenue: number }[]
@@ -63,10 +65,22 @@ export async function getMonthlyStats(year?: number): Promise<MonthlyStats[]> {
       return sum + (o.type === 'sale_return' ? -amount : amount)
     }, 0)
     
+    // 計算銷售運費
+    const salesShipping = data.sales.reduce((sum, o) => {
+      const shipping = o.shipping_fee || 0
+      return sum + (o.type === 'sale_return' ? -shipping : shipping)
+    }, 0)
+    
     // 計算進貨成本（進貨用 cost 欄位，進退用負數沖銷）
     const purchaseCost = data.purchases.reduce((sum, o) => {
       const amount = o.cost || 0  // 使用 cost 欄位，不是 total_price
       return sum + (o.type === 'purchase_return' ? -amount : amount)
+    }, 0)
+    
+    // 計算進貨運費
+    const purchaseShipping = data.purchases.reduce((sum, o) => {
+      const shipping = o.shipping_fee || 0
+      return sum + (o.type === 'purchase_return' ? -shipping : shipping)
     }, 0)
     
     // 計算銷售利潤（銷貨的 profit 欄位，銷退沖銷）
@@ -115,7 +129,9 @@ export async function getMonthlyStats(year?: number): Promise<MonthlyStats[]> {
       sales_count: data.sales.filter(o => o.type === 'sale').length,
       purchase_count: data.purchases.filter(o => o.type === 'purchase').length,
       sales_revenue: salesRevenue,
+      sales_shipping: salesShipping,
       purchase_cost: purchaseCost,
+      purchase_shipping: purchaseShipping,
       profit,
       top_products: topProducts,
       top_customers: topCustomers,

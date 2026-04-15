@@ -41,10 +41,10 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
 }
 
 export const ORDER_TYPE_LABELS: Record<string, string> = {
-  sale: '銷售',
+  sale: '銷貨',
   purchase: '進貨',
-  sale_return: '銷退',
-  purchase_return: '退貨',
+  sale_return: '銷貨退回',
+  purchase_return: '進貨退回',
 }
 
 export function getPaymentStatusLabel(status: string | null): string {
