@@ -129,9 +129,7 @@ export default function ProductsPage() {
 
   // 統計
   const totalProducts = products.length
-  const lowStockProducts = products.filter((p) => p.stock <= p.min_stock && p.stock > 0).length
-  const outOfStockProducts = products.filter((p) => p.stock <= 0).length
-  const totalValue = products.reduce((sum, p) => sum + p.stock * p.cost, 0)
+  const activeProducts = products.filter((p) => p.is_active).length
 
   return (
     <div className="p-6 pt-16 lg:pt-6 space-y-6">
@@ -147,7 +145,7 @@ export default function ProductsPage() {
       </div>
 
       {/* 統計卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
@@ -164,38 +162,12 @@ export default function ProductsPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-warning/10 rounded-lg">
-                <Package className="h-5 w-5 text-warning" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">庫存不足</p>
-                <p className="text-2xl font-bold text-warning">{lowStockProducts}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-destructive/10 rounded-lg">
-                <Package className="h-5 w-5 text-destructive" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">缺貨商品</p>
-                <p className="text-2xl font-bold text-destructive">{outOfStockProducts}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
               <div className="p-2 bg-success/10 rounded-lg">
                 <Package className="h-5 w-5 text-success" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">庫存總值</p>
-                <p className="text-2xl font-bold text-success">{formatCurrency(totalValue)}</p>
+                <p className="text-sm text-muted-foreground">啟用中</p>
+                <p className="text-2xl font-bold text-success">{activeProducts}</p>
               </div>
             </div>
           </CardContent>
@@ -261,7 +233,6 @@ export default function ProductsPage() {
               <TableHead>供應商</TableHead>
               <TableHead className="text-right">成本</TableHead>
               <TableHead className="text-right">售價</TableHead>
-              <TableHead className="text-right">庫存</TableHead>
               <TableHead>狀態</TableHead>
               <TableHead className="w-[70px]">操作</TableHead>
             </TableRow>
@@ -269,7 +240,7 @@ export default function ProductsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={10} className="h-24 text-center">
+                <TableCell colSpan={9} className="h-24 text-center">
                   <div className="flex items-center justify-center">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
                   </div>
@@ -277,7 +248,7 @@ export default function ProductsPage() {
               </TableRow>
             ) : products.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                   尚無商品資料
                 </TableCell>
               </TableRow>
@@ -291,30 +262,14 @@ export default function ProductsPage() {
                   <TableCell>{product.supplier || '-'}</TableCell>
                   <TableCell className="text-right">{formatCurrency(product.cost)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(product.price)}</TableCell>
-                  <TableCell className="text-right">
-                    <span
-                      className={
-                        product.stock <= 0
-                          ? 'text-destructive font-medium'
-                          : product.stock <= product.min_stock
-                            ? 'text-warning font-medium'
-                            : ''
-                      }
-                    >
-                      {product.stock}
-                      {product.unit && ` ${product.unit}`}
-                    </span>
-                  </TableCell>
                   <TableCell>
-                    {product.stock <= 0 ? (
-                      <Badge variant="destructive">缺貨</Badge>
-                    ) : product.stock <= product.min_stock ? (
-                      <Badge variant="outline" className="text-warning border-warning">
-                        不足
+                    {product.is_active ? (
+                      <Badge variant="outline" className="text-success border-success">
+                        啟用
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-success border-success">
-                        正常
+                      <Badge variant="outline" className="text-muted-foreground">
+                        停用
                       </Badge>
                     )}
                   </TableCell>

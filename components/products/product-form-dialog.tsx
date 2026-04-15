@@ -229,44 +229,21 @@ export function ProductFormDialog({
             </div>
           </div>
 
-          {/* 庫存資訊 */}
-          <div className="space-y-4">
-            <h3 className="font-medium text-sm text-muted-foreground">庫存資訊</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <Field>
-                <FieldLabel>供應商</FieldLabel>
-                <Input
-                  placeholder="供應商名稱"
-                  value={formData.supplier || ''}
-                  onChange={(e) => updateField('supplier', e.target.value || null)}
-                  list="suppliers"
-                />
-                <datalist id="suppliers">
-                  {suppliers.map((s) => (
-                    <option key={s} value={s} />
-                  ))}
-                </datalist>
-              </Field>
-              <Field>
-                <FieldLabel>目前庫存</FieldLabel>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={formData.stock || ''}
-                  onChange={(e) => updateField('stock', e.target.value ? parseInt(e.target.value) : 0)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>安全庫存</FieldLabel>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={formData.min_stock || ''}
-                  onChange={(e) => updateField('min_stock', e.target.value ? parseInt(e.target.value) : 0)}
-                />
-              </Field>
-            </div>
-          </div>
+          {/* 供應商 */}
+          <Field>
+            <FieldLabel>供應商</FieldLabel>
+            <Input
+              placeholder="供應商名稱"
+              value={formData.supplier || ''}
+              onChange={(e) => updateField('supplier', e.target.value || null)}
+              list="suppliers"
+            />
+            <datalist id="suppliers">
+              {suppliers.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+          </Field>
 
           {/* 備註 */}
           <Field>
