@@ -54,7 +54,68 @@ export async function createPayment(payment: PaymentInsert) {
     throw new Error('Failed to create payment')
   }
 
+  // 收款/付款後更新對應訂單的付款狀態
+  await updateOrderPaymentStatus(supabase, payment.party_name, payment.type)
+
   return data
+}
+
+// 更新訂單付款狀態：根據收付款紀錄與訂單金額比對
+async function updateOrderPaymentStatus(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  partyName: string,
+  type: 'receipt' | 'payment'
+) {
+  const isReceipt = type === 'receipt'
+  const orderTypes = isReceipt ? ['sale', 'sale_return'] : ['purchase', 'purchase_return']
+  const partyField = isReceipt ? 'customer_name' : 'supplier'
+  const amountField = isReceipt ? 'total_price' : 'cost'
+
+  // 取得該對象的所有訂單
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('id, type, ' + amountField)
+    .eq(partyField, partyName)
+    .in('type', orderTypes)
+    .order('date', { ascending: true })
+
+  if (!orders || orders.length === 0) return
+
+  // 計算總應收/應付
+  const totalAmount = orders.reduce((sum, order) => {
+    const amount = (order as Record<string, number | string>)[amountField] as number || 0
+    const orderType = order.type
+    if (orderType === 'sale_return' || orderType === 'purchase_return') {
+      return sum - amount
+    }
+    return sum + amount
+  }, 0)
+
+  // 取得已收/已付總額
+  const { data: payments } = await supabase
+    .from('payments')
+    .select('amount')
+    .eq('party_name', partyName)
+    .eq('type', type)
+
+  const totalPaid = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0
+
+  // 決定付款狀態
+  let newStatus: string
+  if (totalPaid >= totalAmount) {
+    newStatus = 'paid'
+  } else if (totalPaid > 0) {
+    newStatus = 'partial'
+  } else {
+    newStatus = 'unpaid'
+  }
+
+  // 更新所有相關訂單的付款狀態
+  await supabase
+    .from('orders')
+    .update({ payment_status: newStatus })
+    .eq(partyField, partyName)
+    .in('type', orderTypes)
 }
 
 export async function updatePayment(payment: PaymentUpdate) {
@@ -76,6 +137,13 @@ export async function updatePayment(payment: PaymentUpdate) {
 export async function deletePayment(id: string) {
   const supabase = await createClient()
 
+  // 先取得付款資料以便刪除後重新計算狀態
+  const { data: payment } = await supabase
+    .from('payments')
+    .select('party_name, type')
+    .eq('id', id)
+    .single()
+
   const { error } = await supabase
     .from('payments')
     .delete()
@@ -84,6 +152,11 @@ export async function deletePayment(id: string) {
   if (error) {
     console.error('Error deleting payment:', error)
     throw new Error('Failed to delete payment')
+  }
+
+  // 刪除後重新計算訂單付款狀態
+  if (payment) {
+    await updateOrderPaymentStatus(supabase, payment.party_name, payment.type as 'receipt' | 'payment')
   }
 }
 

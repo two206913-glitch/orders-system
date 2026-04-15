@@ -126,3 +126,126 @@ export async function getProductAvgCost(productName: string, spec?: string | nul
   )
   return item?.avg_cost || 0
 }
+
+// 從訂單計算庫存（供庫存頁面使用）
+export async function getInventoryFromOrders(search?: string): Promise<{
+  product_name: string
+  spec: string | null
+  cost: number
+  price: number
+  supplier: string | null
+  stock: number
+  min_stock: number
+  unit: string | null
+}[]> {
+  const supabase = await createClient()
+
+  // 取得所有訂單
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('product_name, spec, type, quantity, cost, supplier')
+    .not('product_name', 'is', null)
+
+  // 取得商品資料（用於取得價格和安全庫存）
+  const { data: products } = await supabase
+    .from('products')
+    .select('name, variant, cost, price, min_stock, unit, supplier')
+    .eq('is_active', true)
+
+  if (!orders) return []
+
+  // 按商品名稱和規格分組計算庫存
+  const inventoryMap = new Map<string, {
+    product_name: string
+    spec: string | null
+    quantity: number
+    totalCost: number
+    orderCount: number
+    supplier: string | null
+  }>()
+
+  orders.forEach((order) => {
+    if (!order.product_name) return
+    const key = `${order.product_name}|${order.spec || ''}`
+    const current = inventoryMap.get(key) || {
+      product_name: order.product_name,
+      spec: order.spec,
+      quantity: 0,
+      totalCost: 0,
+      orderCount: 0,
+      supplier: order.supplier,
+    }
+
+    const qty = order.quantity || 0
+    const cost = order.cost || 0
+
+    switch (order.type) {
+      case 'purchase':
+        current.quantity += qty
+        current.totalCost += cost
+        current.orderCount += 1
+        break
+      case 'sale':
+        current.quantity -= qty
+        break
+      case 'sale_return':
+        current.quantity += qty
+        break
+      case 'purchase_return':
+        current.quantity -= qty
+        current.totalCost -= cost
+        break
+    }
+
+    if (!current.supplier && order.supplier) {
+      current.supplier = order.supplier
+    }
+
+    inventoryMap.set(key, current)
+  })
+
+  // 轉換為結果陣列
+  const items: {
+    product_name: string
+    spec: string | null
+    cost: number
+    price: number
+    supplier: string | null
+    stock: number
+    min_stock: number
+    unit: string | null
+  }[] = []
+
+  inventoryMap.forEach((item) => {
+    const product = products?.find(
+      (p) => p.name === item.product_name && (p.variant || null) === (item.spec || null)
+    )
+
+    const avgCost = item.orderCount > 0 ? Math.round(item.totalCost / item.orderCount) : 0
+
+    items.push({
+      product_name: item.product_name,
+      spec: item.spec,
+      cost: product?.cost || avgCost,
+      price: product?.price || 0,
+      supplier: product?.supplier || item.supplier,
+      stock: item.quantity,
+      min_stock: product?.min_stock || 5,
+      unit: product?.unit || '個',
+    })
+  })
+
+  // 過濾和排序
+  let filtered = items
+  if (search) {
+    const searchLower = search.toLowerCase()
+    filtered = items.filter(
+      (item) =>
+        item.product_name.toLowerCase().includes(searchLower) ||
+        (item.spec && item.spec.toLowerCase().includes(searchLower)) ||
+        (item.supplier && item.supplier.toLowerCase().includes(searchLower))
+    )
+  }
+
+  return filtered.sort((a, b) => a.product_name.localeCompare(b.product_name, 'zh-TW'))
+}

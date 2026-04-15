@@ -1,438 +1,220 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { useState, useEffect } from 'react'
+import { getInventoryFromOrders } from '@/app/actions/inventory'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
-import { Field, FieldLabel } from '@/components/ui/field'
-import {
-  Package,
-  Search,
-  ChevronDown,
-  ChevronRight,
-  Plus,
-  Minus,
-  AlertTriangle,
-  XCircle,
-  CheckCircle,
-} from 'lucide-react'
-import { getProducts, updateProduct } from '@/app/actions/products'
-import { formatCurrency } from '@/lib/locale'
-import type { Product } from '@/lib/types/product'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Search, Package, AlertTriangle, TrendingUp, BarChart3 } from 'lucide-react'
+
+type InventoryItem = {
+  product_name: string
+  spec: string | null
+  cost: number
+  price: number
+  supplier: string | null
+  stock: number
+  min_stock: number
+  unit: string | null
+}
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('zh-TW', {
+    style: 'currency',
+    currency: 'TWD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount)
+}
 
 export default function InventoryPage() {
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
+  const [inventory, setInventory] = useState<InventoryItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
-  
-  // 庫存調整對話框
-  const [adjustDialog, setAdjustDialog] = useState<{
-    open: boolean
-    product: Product | null
-    type: 'add' | 'subtract'
-  }>({ open: false, product: null, type: 'add' })
-  const [adjustQuantity, setAdjustQuantity] = useState('')
-  const [adjustNote, setAdjustNote] = useState('')
-  const [isAdjusting, setIsAdjusting] = useState(false)
-
-  const loadData = useCallback(async () => {
-    setLoading(true)
-    try {
-      const data = await getProducts({ search, showInactive: false })
-      setProducts(data)
-    } finally {
-      setLoading(false)
-    }
-  }, [search])
 
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    loadInventory()
+  }, [search])
 
-  const toggleRow = (id: string) => {
-    setExpandedRows((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }
-
-  const openAdjustDialog = (product: Product, type: 'add' | 'subtract') => {
-    setAdjustDialog({ open: true, product, type })
-    setAdjustQuantity('')
-    setAdjustNote('')
-  }
-
-  const handleAdjust = async () => {
-    if (!adjustDialog.product || !adjustQuantity) return
-    
-    const qty = parseInt(adjustQuantity)
-    if (isNaN(qty) || qty <= 0) {
-      alert('請輸入有效數量')
-      return
-    }
-
-    const newStock = adjustDialog.type === 'add'
-      ? adjustDialog.product.stock + qty
-      : adjustDialog.product.stock - qty
-
-    if (newStock < 0) {
-      alert('庫存不能為負數')
-      return
-    }
-
-    setIsAdjusting(true)
+  const loadInventory = async () => {
+    setIsLoading(true)
     try {
-      await updateProduct({
-        id: adjustDialog.product.id,
-        stock: newStock,
-      })
-      setAdjustDialog({ open: false, product: null, type: 'add' })
-      loadData()
+      const data = await getInventoryFromOrders(search)
+      setInventory(data)
     } catch (error) {
-      console.error('Error adjusting stock:', error)
-      alert('調整庫存失敗')
+      console.error('[v0] Failed to load inventory:', error)
     } finally {
-      setIsAdjusting(false)
+      setIsLoading(false)
     }
   }
 
-  // 統計
-  const totalProducts = products.length
-  const lowStockProducts = products.filter((p) => p.stock > 0 && p.stock <= p.min_stock).length
-  const outOfStockProducts = products.filter((p) => p.stock <= 0).length
-  const totalValue = products.reduce((sum, p) => sum + p.stock * p.cost, 0)
+  // 計算統計數據
+  const stats = {
+    totalProducts: inventory.length,
+    lowStockCount: inventory.filter(item => item.stock > 0 && item.stock <= item.min_stock).length,
+    outOfStockCount: inventory.filter(item => item.stock <= 0).length,
+    totalValue: inventory.reduce((sum, item) => sum + (item.cost * item.stock), 0),
+  }
+
+  const getStockStatus = (item: InventoryItem) => {
+    if (item.stock <= 0) return { label: '缺貨', variant: 'destructive' as const }
+    if (item.stock <= item.min_stock) return { label: '庫存低', variant: 'warning' as const }
+    return { label: '正常', variant: 'success' as const }
+  }
 
   return (
-    <div className="p-6 pt-16 lg:pt-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">庫存管理</h1>
-        <p className="text-muted-foreground">查看商品庫存狀態與調整庫存</p>
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold mb-2">庫存管理</h1>
+        <p className="text-muted-foreground">即時庫存監控，根據進銷貨紀錄自動計算</p>
       </div>
 
       {/* 統計卡片 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Package className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">商品種類</p>
-                <p className="text-2xl font-bold">{totalProducts}</p>
-              </div>
-            </div>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              商品總數
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalProducts}</div>
           </CardContent>
         </Card>
+        
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-warning/10 rounded-lg">
-                <AlertTriangle className="h-5 w-5 text-warning" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">庫存不足</p>
-                <p className="text-2xl font-bold text-warning">{lowStockProducts}</p>
-              </div>
-            </div>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+              庫存偏低
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-warning">{stats.lowStockCount}</div>
           </CardContent>
         </Card>
+        
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-destructive/10 rounded-lg">
-                <XCircle className="h-5 w-5 text-destructive" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">缺貨商品</p>
-                <p className="text-2xl font-bold text-destructive">{outOfStockProducts}</p>
-              </div>
-            </div>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              缺貨商品
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">{stats.outOfStockCount}</div>
           </CardContent>
         </Card>
+        
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-success/10 rounded-lg">
-                <CheckCircle className="h-5 w-5 text-success" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">庫存總值</p>
-                <p className="text-2xl font-bold text-success">{formatCurrency(totalValue)}</p>
-              </div>
-            </div>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              庫存總成本
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(stats.totalValue)}</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* 搜尋 */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="搜尋商品..."
-            className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </div>
+      {/* 搜尋和篩選 */}
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <Input
+              placeholder="搜尋商品名稱、規格或供應商..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 庫存列表 */}
       <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[40px]"></TableHead>
-              <TableHead>商品名稱</TableHead>
-              <TableHead>規格</TableHead>
-              <TableHead>供應商</TableHead>
-              <TableHead className="text-right">成本</TableHead>
-              <TableHead className="text-right">現有庫存</TableHead>
-              <TableHead className="text-right">安全庫存</TableHead>
-              <TableHead className="text-right">庫存價值</TableHead>
-              <TableHead>狀態</TableHead>
-              <TableHead className="w-[100px]">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={10} className="h-24 text-center">
-                  <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : products.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
-                  尚無商品資料
-                </TableCell>
-              </TableRow>
-            ) : (
-              products.map((product) => {
-                const isExpanded = expandedRows.has(product.id)
-                const stockValue = product.stock * product.cost
+        <CardHeader>
+          <CardTitle>庫存列表</CardTitle>
+          <CardDescription>共 {inventory.length} 項商品</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead>商品名稱</TableHead>
+                  <TableHead>規格</TableHead>
+                  <TableHead>供應商</TableHead>
+                  <TableHead className="text-right">成本</TableHead>
+                  <TableHead className="text-right">售價</TableHead>
+                  <TableHead className="text-right">毛利率</TableHead>
+                  <TableHead className="text-center">庫存</TableHead>
+                  <TableHead className="text-center">狀態</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      載入中...
+                    </TableCell>
+                  </TableRow>
+                ) : inventory.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      {search ? '找不到符合條件的商品' : '目前沒有庫存資料'}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  inventory.map((item, index) => {
+                    const status = getStockStatus(item)
+                    const margin = item.price > 0 && item.cost > 0 
+                      ? Math.round(((item.price - item.cost) / item.price) * 100) 
+                      : 0
 
-                return (
-                  <Collapsible key={product.id} asChild open={isExpanded}>
-                    <>
-                      <TableRow className="hover:bg-muted/50">
-                        <TableCell>
-                          <CollapsibleTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => toggleRow(product.id)}
-                            >
-                              {isExpanded ? (
-                                <ChevronDown className="h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </CollapsibleTrigger>
-                        </TableCell>
-                        <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell>{product.variant || '-'}</TableCell>
-                        <TableCell>{product.supplier || '-'}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(product.cost)}</TableCell>
+                    return (
+                      <TableRow key={`${item.product_name}-${item.spec}-${index}`}>
+                        <TableCell className="font-medium">{item.product_name}</TableCell>
+                        <TableCell className="text-muted-foreground">{item.spec || '-'}</TableCell>
+                        <TableCell className="text-muted-foreground">{item.supplier || '-'}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(item.cost)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
                         <TableCell className="text-right">
-                          <span
-                            className={
-                              product.stock <= 0
-                                ? 'text-destructive font-bold'
-                                : product.stock <= product.min_stock
-                                  ? 'text-warning font-bold'
-                                  : 'font-medium'
-                            }
-                          >
-                            {product.stock}
-                            {product.unit && ` ${product.unit}`}
+                          {margin > 0 ? (
+                            <span className={margin >= 20 ? 'text-success' : margin >= 10 ? 'text-warning' : 'text-destructive'}>
+                              {margin}%
+                            </span>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className={item.stock <= 0 ? 'text-destructive' : item.stock <= item.min_stock ? 'text-warning' : ''}>
+                            {item.stock} {item.unit}
                           </span>
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {product.min_stock}{product.unit && ` ${product.unit}`}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(stockValue)}
-                        </TableCell>
-                        <TableCell>
-                          {product.stock <= 0 ? (
-                            <Badge variant="destructive">缺貨</Badge>
-                          ) : product.stock <= product.min_stock ? (
-                            <Badge variant="outline" className="text-warning border-warning">
-                              不足
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-success border-success">
-                              正常
-                            </Badge>
+                          {item.min_stock > 0 && (
+                            <span className="text-xs text-muted-foreground ml-1">
+                              / {item.min_stock}
+                            </span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => openAdjustDialog(product, 'add')}
-                              title="入庫"
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => openAdjustDialog(product, 'subtract')}
-                              title="出庫"
-                              disabled={product.stock <= 0}
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                          </div>
+                        <TableCell className="text-center">
+                          <Badge variant={status.variant === 'success' ? 'default' : status.variant === 'warning' ? 'outline' : 'destructive'}>
+                            {status.label}
+                          </Badge>
                         </TableCell>
                       </TableRow>
-                      <CollapsibleContent asChild>
-                        <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableCell colSpan={10} className="py-4">
-                            <div className="grid grid-cols-4 gap-6 px-8">
-                              <div>
-                                <p className="text-xs text-muted-foreground mb-1">SKU</p>
-                                <p className="font-medium">{product.sku || '-'}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground mb-1">分類</p>
-                                <p className="font-medium">{product.category || '-'}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground mb-1">售價</p>
-                                <p className="font-medium">{formatCurrency(product.price)}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground mb-1">毛利率</p>
-                                <p className="font-medium">
-                                  {product.price > 0 && product.cost > 0
-                                    ? `${Math.round(((product.price - product.cost) / product.price) * 100)}%`
-                                    : '-'}
-                                </p>
-                              </div>
-                              {product.note && (
-                                <div className="col-span-4">
-                                  <p className="text-xs text-muted-foreground mb-1">備註</p>
-                                  <p className="text-sm">{product.note}</p>
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      </CollapsibleContent>
-                    </>
-                  </Collapsible>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
-      </Card>
-
-      {/* 庫存調整對話框 */}
-      <Dialog open={adjustDialog.open} onOpenChange={(open) => !open && setAdjustDialog({ open: false, product: null, type: 'add' })}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {adjustDialog.type === 'add' ? '入庫' : '出庫'} - {adjustDialog.product?.name}
-              {adjustDialog.product?.variant && ` (${adjustDialog.product.variant})`}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">目前庫存</span>
-              <span className="font-medium">
-                {adjustDialog.product?.stock}
-                {adjustDialog.product?.unit && ` ${adjustDialog.product.unit}`}
-              </span>
-            </div>
-            <Field>
-              <FieldLabel>
-                {adjustDialog.type === 'add' ? '入庫' : '出庫'}數量
-              </FieldLabel>
-              <Input
-                type="number"
-                placeholder="輸入數量"
-                value={adjustQuantity}
-                onChange={(e) => setAdjustQuantity(e.target.value)}
-                min={1}
-                max={adjustDialog.type === 'subtract' ? adjustDialog.product?.stock : undefined}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>備註（選填）</FieldLabel>
-              <Input
-                placeholder="調整原因"
-                value={adjustNote}
-                onChange={(e) => setAdjustNote(e.target.value)}
-              />
-            </Field>
-            {adjustQuantity && (
-              <div className="flex items-center justify-between text-sm border-t pt-4">
-                <span className="text-muted-foreground">調整後庫存</span>
-                <span className="font-bold">
-                  {adjustDialog.type === 'add'
-                    ? (adjustDialog.product?.stock || 0) + parseInt(adjustQuantity || '0')
-                    : (adjustDialog.product?.stock || 0) - parseInt(adjustQuantity || '0')}
-                  {adjustDialog.product?.unit && ` ${adjustDialog.product.unit}`}
-                </span>
-              </div>
-            )}
+                    )
+                  })
+                )}
+              </TableBody>
+            </Table>
           </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setAdjustDialog({ open: false, product: null, type: 'add' })}
-            >
-              取消
-            </Button>
-            <Button
-              onClick={handleAdjust}
-              disabled={isAdjusting || !adjustQuantity}
-              className={adjustDialog.type === 'add' ? 'bg-success hover:bg-success/90' : ''}
-            >
-              {isAdjusting ? '處理中...' : adjustDialog.type === 'add' ? '確認入庫' : '確認出庫'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </CardContent>
+      </Card>
     </div>
   )
 }
