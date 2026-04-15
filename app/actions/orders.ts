@@ -152,6 +152,58 @@ export async function updateOrderStatus(
   }
 }
 
+// 根據訂單類型計算庫存變化量
+// 進貨: +quantity, 銷貨: -quantity, 銷貨退回: +quantity, 進貨退回: -quantity
+function getStockDelta(type: string | null, quantity: number): number {
+  switch (type) {
+    case 'purchase':
+      return quantity // 進貨增加庫存
+    case 'sale':
+      return -quantity // 銷貨減少庫存
+    case 'sale_return':
+      return quantity // 銷貨退回增加庫存
+    case 'purchase_return':
+      return -quantity // 進貨退回減少庫存
+    default:
+      return 0
+  }
+}
+
+// 更新商品庫存
+async function updateProductStock(
+  supabase: ReturnType<typeof createClient> extends Promise<infer T> ? T : never,
+  productName: string | null,
+  spec: string | null,
+  delta: number
+) {
+  if (!productName || delta === 0) return
+
+  // 根據名稱和規格查找商品
+  let query = supabase
+    .from('products')
+    .select('id, stock')
+    .eq('name', productName)
+    .eq('is_active', true)
+
+  if (spec) {
+    query = query.eq('variant', spec)
+  } else {
+    query = query.is('variant', null)
+  }
+
+  const { data: products } = await query.limit(1)
+
+  if (products && products.length > 0) {
+    const product = products[0]
+    const newStock = Math.max(0, (product.stock || 0) + delta)
+    
+    await supabase
+      .from('products')
+      .update({ stock: newStock })
+      .eq('id', product.id)
+  }
+}
+
 export async function createOrder(order: OrderInsert) {
   const supabase = await createClient()
 
@@ -161,10 +213,22 @@ export async function createOrder(order: OrderInsert) {
     console.error('Error creating order:', error)
     throw new Error('Failed to create order')
   }
+
+  // 更新商品庫存
+  const quantity = order.quantity ?? 0
+  const stockDelta = getStockDelta(order.type, quantity)
+  await updateProductStock(supabase, order.product_name, order.spec, stockDelta)
 }
 
 export async function updateOrder(id: string, updates: Partial<OrderInsert>) {
   const supabase = await createClient()
+
+  // 先取得原訂單資料以計算庫存差異
+  const { data: originalOrder } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('id', id)
+    .single()
 
   const { error } = await supabase.from('orders').update(updates).eq('id', id)
 
@@ -172,15 +236,50 @@ export async function updateOrder(id: string, updates: Partial<OrderInsert>) {
     console.error('Error updating order:', error)
     throw new Error('Failed to update order')
   }
+
+  // 如果商品名稱、規格、數量或類型有變化，需要更新庫存
+  if (originalOrder) {
+    const oldType = originalOrder.type
+    const newType = updates.type ?? oldType
+    const oldQty = originalOrder.quantity ?? 0
+    const newQty = updates.quantity ?? oldQty
+    const oldProduct = originalOrder.product_name
+    const newProduct = updates.product_name ?? oldProduct
+    const oldSpec = originalOrder.spec
+    const newSpec = updates.spec ?? oldSpec
+
+    // 還原原訂單的庫存影響
+    const oldDelta = getStockDelta(oldType, oldQty)
+    await updateProductStock(supabase, oldProduct, oldSpec, -oldDelta)
+
+    // 套用新訂單的庫存影響
+    const newDelta = getStockDelta(newType, newQty)
+    await updateProductStock(supabase, newProduct, newSpec, newDelta)
+  }
 }
 
 export async function deleteOrder(id: string) {
   const supabase = await createClient()
+
+  // 先取得訂單資料以還原庫存
+  const { data: order } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('id', id)
+    .single()
 
   const { error } = await supabase.from('orders').delete().eq('id', id)
 
   if (error) {
     console.error('Error deleting order:', error)
     throw new Error('Failed to delete order')
+  }
+
+  // 還原庫存
+  if (order) {
+    const quantity = order.quantity ?? 0
+    const stockDelta = getStockDelta(order.type, quantity)
+    // 刪除訂單時要反向更新庫存
+    await updateProductStock(supabase, order.product_name, order.spec, -stockDelta)
   }
 }

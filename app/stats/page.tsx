@@ -28,10 +28,12 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
       sales_count: acc.sales_count + month.sales_count,
       purchase_count: acc.purchase_count + month.purchase_count,
       sales_revenue: acc.sales_revenue + month.sales_revenue,
+      sales_shipping: acc.sales_shipping + month.sales_shipping,
       purchase_cost: acc.purchase_cost + month.purchase_cost,
+      purchase_shipping: acc.purchase_shipping + month.purchase_shipping,
       profit: acc.profit + month.profit,
     }),
-    { sales_count: 0, purchase_count: 0, sales_revenue: 0, purchase_cost: 0, profit: 0 }
+    { sales_count: 0, purchase_count: 0, sales_revenue: 0, sales_shipping: 0, purchase_cost: 0, purchase_shipping: 0, profit: 0 }
   )
 
   // Find best month
@@ -120,7 +122,9 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
                 <TableHead className="text-right">銷售筆數</TableHead>
                 <TableHead className="text-right">進貨筆數</TableHead>
                 <TableHead className="text-right">銷售營收</TableHead>
+                <TableHead className="text-right">銷售運費</TableHead>
                 <TableHead className="text-right">進貨成本</TableHead>
+                <TableHead className="text-right">進貨運費</TableHead>
                 <TableHead className="text-right">利潤</TableHead>
               </TableRow>
             </TableHeader>
@@ -136,7 +140,9 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
                   <TableCell className="text-right">{month.sales_count}</TableCell>
                   <TableCell className="text-right">{month.purchase_count}</TableCell>
                   <TableCell className="text-right">{formatCurrency(month.sales_revenue)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{formatCurrency(month.sales_shipping)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(month.purchase_cost)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{formatCurrency(month.purchase_shipping)}</TableCell>
                   <TableCell className={`text-right font-medium ${month.profit >= 0 ? 'text-success' : 'text-destructive'}`}>
                     {formatCurrency(month.profit)}
                   </TableCell>
@@ -148,7 +154,9 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
                 <TableCell className="text-right">{yearlyTotals.sales_count}</TableCell>
                 <TableCell className="text-right">{yearlyTotals.purchase_count}</TableCell>
                 <TableCell className="text-right">{formatCurrency(yearlyTotals.sales_revenue)}</TableCell>
+                <TableCell className="text-right text-muted-foreground">{formatCurrency(yearlyTotals.sales_shipping)}</TableCell>
                 <TableCell className="text-right">{formatCurrency(yearlyTotals.purchase_cost)}</TableCell>
+                <TableCell className="text-right text-muted-foreground">{formatCurrency(yearlyTotals.purchase_shipping)}</TableCell>
                 <TableCell className={`text-right ${yearlyTotals.profit >= 0 ? 'text-success' : 'text-destructive'}`}>
                   {formatCurrency(yearlyTotals.profit)}
                 </TableCell>

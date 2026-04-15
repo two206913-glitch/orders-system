@@ -15,6 +15,7 @@ export interface Order {
   payment_status: string | null
   payment_method: string | null
   shipping_status: string | null
+  shipping_fee: number | null
   note: string | null
   type: string | null
   created_at: string
