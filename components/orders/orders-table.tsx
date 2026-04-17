@@ -18,7 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Empty } from '@/components/ui/empty'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from '@/components/ui/empty'
 import { MoreHorizontal, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, Package, Plus } from 'lucide-react'
 import type { Order } from '@/lib/types/order'
 import { formatCurrency, formatDate, getOrderTypeLabel } from '@/lib/locale'
@@ -107,12 +107,15 @@ export function OrdersTable({ orders, total, currentPage, pageSize }: OrdersTabl
             {orders.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={10} className="h-64">
-                  <Empty
-                    icon={Package}
-                    title="尚無訂單資料"
-                    description="目前沒有符合條件的訂單，點擊下方按鈕新增第一筆訂單"
-                  >
-                    <Button onClick={() => setIsCreateOpen(true)} className="mt-4">
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <Package className="size-5" />
+                      </EmptyMedia>
+                      <EmptyTitle>尚無訂單資料</EmptyTitle>
+                      <EmptyDescription>目前沒有符合條件的訂單，點擊下方按鈕新增第一筆訂單</EmptyDescription>
+                    </EmptyHeader>
+                    <Button onClick={() => setIsCreateOpen(true)}>
                       <Plus className="mr-2 h-4 w-4" />
                       新增訂單
                     </Button>
