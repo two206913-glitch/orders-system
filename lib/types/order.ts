@@ -1,3 +1,16 @@
+// 訂單商品項目（多商品支援）
+export interface OrderItem {
+  id?: string
+  order_id?: string
+  product_id: string | null
+  product_name: string
+  product_variant: string | null
+  quantity: number
+  unit_price: number
+  cost: number
+  subtotal: number
+}
+
 export interface Order {
   id: string
   date: string | null
@@ -19,6 +32,8 @@ export interface Order {
   note: string | null
   type: string | null
   created_at: string
+  // 多商品支援
+  items?: OrderItem[]
 }
 
 export type OrderInsert = Omit<Order, 'id' | 'created_at'>

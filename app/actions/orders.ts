@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import type { OrderInsert, OrderUpdate } from '@/lib/types/order'
+import type { OrderInsert, OrderUpdate, OrderItem } from '@/lib/types/order'
 
 export async function getOrders(filters?: {
   search?: string
@@ -204,23 +204,79 @@ async function updateProductStock(
   }
 }
 
-export async function createOrder(order: OrderInsert) {
+// 建立訂單（支援多商品）
+export async function createOrder(order: OrderInsert, items?: OrderItem[]) {
   const supabase = await createClient()
 
-  const { error } = await supabase.from('orders').insert([order])
+  // 建立訂單主表
+  const { data: newOrder, error } = await supabase
+    .from('orders')
+    .insert([order])
+    .select('id')
+    .single()
 
   if (error) {
     console.error('Error creating order:', error)
     throw new Error('Failed to create order')
   }
 
-  // 更新商品庫存
-  const quantity = order.quantity ?? 0
-  const stockDelta = getStockDelta(order.type, quantity)
-  await updateProductStock(supabase, order.product_name, order.spec, stockDelta)
+  // 如果有多商品項目，寫入 order_items 表
+  if (items && items.length > 0) {
+    const orderItems = items.map(item => ({
+      order_id: newOrder.id,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      product_variant: item.product_variant,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      cost: item.cost,
+      subtotal: item.subtotal,
+    }))
+
+    const { error: itemsError } = await supabase
+      .from('order_items')
+      .insert(orderItems)
+
+    if (itemsError) {
+      console.error('Error creating order items:', itemsError)
+      // 不中斷，訂單已建立
+    }
+
+    // 更新每個商品的庫存
+    for (const item of items) {
+      const stockDelta = getStockDelta(order.type, item.quantity)
+      await updateProductStock(supabase, item.product_name, item.product_variant, stockDelta)
+    }
+  } else {
+    // 舊邏輯：單商品訂單
+    const quantity = order.quantity ?? 0
+    const stockDelta = getStockDelta(order.type, quantity)
+    await updateProductStock(supabase, order.product_name, order.spec, stockDelta)
+  }
+
+  return newOrder
 }
 
-export async function updateOrder(id: string, updates: Partial<OrderInsert>) {
+// 取得訂單的商品項目
+export async function getOrderItems(orderId: string): Promise<OrderItem[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('order_items')
+    .select('*')
+    .eq('order_id', orderId)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching order items:', error)
+    return []
+  }
+
+  return data || []
+}
+
+// 更新訂單（支援多商品）
+export async function updateOrder(id: string, updates: Partial<OrderInsert>, items?: OrderItem[]) {
   const supabase = await createClient()
 
   // 先取得原訂單資料以計算庫存差異
@@ -230,6 +286,12 @@ export async function updateOrder(id: string, updates: Partial<OrderInsert>) {
     .eq('id', id)
     .single()
 
+  // 取得原訂單的商品項目
+  const { data: originalItems } = await supabase
+    .from('order_items')
+    .select('*')
+    .eq('order_id', id)
+
   const { error } = await supabase.from('orders').update(updates).eq('id', id)
 
   if (error) {
@@ -237,8 +299,41 @@ export async function updateOrder(id: string, updates: Partial<OrderInsert>) {
     throw new Error('Failed to update order')
   }
 
-  // 如果商品名稱、規格、數量或類型有變化，需要更新庫存
-  if (originalOrder) {
+  // 如果有新的商品項目列表
+  if (items && items.length > 0) {
+    // 還原原有商品項目的庫存
+    if (originalItems && originalItems.length > 0 && originalOrder) {
+      for (const item of originalItems) {
+        const oldDelta = getStockDelta(originalOrder.type, item.quantity)
+        await updateProductStock(supabase, item.product_name, item.product_variant, -oldDelta)
+      }
+    }
+
+    // 刪除原有商品項目
+    await supabase.from('order_items').delete().eq('order_id', id)
+
+    // 插入新的商品項目
+    const orderItems = items.map(item => ({
+      order_id: id,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      product_variant: item.product_variant,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      cost: item.cost,
+      subtotal: item.subtotal,
+    }))
+
+    await supabase.from('order_items').insert(orderItems)
+
+    // 套用新商品項目的庫存
+    const newType = updates.type ?? originalOrder?.type
+    for (const item of items) {
+      const newDelta = getStockDelta(newType, item.quantity)
+      await updateProductStock(supabase, item.product_name, item.product_variant, newDelta)
+    }
+  } else if (originalOrder) {
+    // 舊邏輯：單商品訂單
     const oldType = originalOrder.type
     const newType = updates.type ?? oldType
     const oldQty = originalOrder.quantity ?? 0
@@ -268,6 +363,13 @@ export async function deleteOrder(id: string) {
     .eq('id', id)
     .single()
 
+  // 取得訂單的商品項目
+  const { data: orderItems } = await supabase
+    .from('order_items')
+    .select('*')
+    .eq('order_id', id)
+
+  // 刪除訂單（order_items 會因為 ON DELETE CASCADE 自動刪除）
   const { error } = await supabase.from('orders').delete().eq('id', id)
 
   if (error) {
@@ -277,9 +379,17 @@ export async function deleteOrder(id: string) {
 
   // 還原庫存
   if (order) {
-    const quantity = order.quantity ?? 0
-    const stockDelta = getStockDelta(order.type, quantity)
-    // 刪除訂單時要反向更新庫存
-    await updateProductStock(supabase, order.product_name, order.spec, -stockDelta)
+    // 如果有多商品項目，還原每個商品的庫存
+    if (orderItems && orderItems.length > 0) {
+      for (const item of orderItems) {
+        const stockDelta = getStockDelta(order.type, item.quantity)
+        await updateProductStock(supabase, item.product_name, item.product_variant, -stockDelta)
+      }
+    } else {
+      // 舊邏輯：單商品訂單
+      const quantity = order.quantity ?? 0
+      const stockDelta = getStockDelta(order.type, quantity)
+      await updateProductStock(supabase, order.product_name, order.spec, -stockDelta)
+    }
   }
 }

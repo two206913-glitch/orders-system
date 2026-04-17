@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
-import type { Order, OrderInsert } from '@/lib/types/order'
+import type { Order, OrderInsert, OrderItem } from '@/lib/types/order'
 import { PAYMENT_STATUSES, SHIPPING_STATUSES, PAYMENT_METHODS, ORDER_TYPES } from '@/lib/types/order'
 import { 
   PAYMENT_STATUS_LABELS, 
@@ -30,6 +30,7 @@ import {
 } from '@/lib/locale'
 import { createOrder, updateOrder } from '@/app/actions/orders'
 import { ProductSelector } from './product-selector'
+import { OrderItemsForm } from './order-items-form'
 
 interface OrderFormDialogProps {
   open: boolean
@@ -64,6 +65,9 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
   const [isPending, startTransition] = useTransition()
   const [formData, setFormData] = useState<OrderInsert>(emptyForm)
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
+  // 多商品模式
+  const [isMultiItem, setIsMultiItem] = useState(false)
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([])
 
   useEffect(() => {
     if (order && mode === 'edit') {
@@ -89,16 +93,30 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
       })
     } else if (mode === 'create') {
       setFormData(emptyForm)
+      setIsMultiItem(false)
+      setOrderItems([])
     }
   }, [order, mode])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     startTransition(async () => {
+      // 多商品模式時計算總金額
+      let submitData = { ...formData }
+      if (isMultiItem && orderItems.length > 0) {
+        const totalItemsAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0)
+        const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0)
+        const shippingFee = formData.shipping_fee ?? 0
+        submitData.total_price = totalItemsAmount + shippingFee
+        submitData.quantity = totalQuantity
+        // 合併商品名稱顯示
+        submitData.product_name = orderItems.map(i => i.product_name).join(', ')
+      }
+      
       if (mode === 'edit' && order) {
-        await updateOrder(order.id, formData)
+        await updateOrder(order.id, submitData, isMultiItem ? orderItems : undefined)
       } else {
-        await createOrder(formData)
+        await createOrder(submitData, isMultiItem ? orderItems : undefined)
       }
       router.refresh()
       onOpenChange(false)
@@ -265,120 +283,188 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
               </Field>
             </div>
 
-            {/* 商品選擇器 */}
-            <Field>
-              <FieldLabel>選擇商品</FieldLabel>
-              <ProductSelector
-                value={selectedProductId}
-                onChange={handleProductSelect}
+            {/* 多商品切換 */}
+            <div className="flex items-center justify-between py-2 border-b">
+              <span className="text-sm font-medium">商品模式</span>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={!isMultiItem ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setIsMultiItem(false)}
+                >
+                  單一商品
+                </Button>
+                <Button
+                  type="button"
+                  variant={isMultiItem ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setIsMultiItem(true)}
+                >
+                  多商品
+                </Button>
+              </div>
+            </div>
+
+            {isMultiItem ? (
+              /* 多商品模式 */
+              <OrderItemsForm
+                items={orderItems}
+                onChange={setOrderItems}
                 orderType={formData.type || 'sale'}
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                選擇商品後自動帶入名稱、規格與價格
-              </p>
-            </Field>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>產品名稱</FieldLabel>
-                <Input
-                  placeholder="輸入產品名稱"
-                  value={formData.product_name || ''}
-                  onChange={(e) => updateField('product_name', e.target.value || null)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>規格</FieldLabel>
-                <Input
-                  placeholder="輸入規格"
-                  value={formData.spec || ''}
-                  onChange={(e) => updateField('spec', e.target.value || null)}
-                />
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>數量</FieldLabel>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={formData.quantity ?? ''}
-                  onChange={(e) => updateField('quantity', e.target.value ? parseInt(e.target.value) : null)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>單價 (NT$)</FieldLabel>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={formData.unit_price ?? ''}
-                  onChange={(e) => updateField('unit_price', e.target.value ? parseInt(e.target.value) : null)}
-                />
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>
-                  {isPurchaseType ? '單件成本 (NT$)' : '成本 (NT$)'}
-                  {isPurchaseType && <span className="text-destructive ml-1">*</span>}
-                </FieldLabel>
-                <Input
-                  type="number"
-                  placeholder={isPurchaseType ? '輸入單件進貨成本' : '銷貨成本'}
-                  value={formData.cost ?? ''}
-                  onChange={(e) => updateField('cost', e.target.value ? parseInt(e.target.value) : null)}
-                  className={isPurchaseType ? 'border-primary/50' : ''}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isPurchaseType ? '每件商品的進貨成本' : '銷貨成本'}
-                </p>
-              </Field>
-              <Field>
-                <FieldLabel>運費 (NT$)</FieldLabel>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={formData.shipping_fee ?? ''}
-                  onChange={(e) => updateField('shipping_fee', e.target.value ? parseInt(e.target.value) : null)}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  運費會加入總金額
-                </p>
-              </Field>
-            </div>
-
-            <div className={isPurchaseType ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-2 gap-4'}>
-              <Field>
-                <FieldLabel>{isPurchaseType ? '總成本 (NT$)' : '總金額 (NT$)'}</FieldLabel>
-                <Input
-                  type="number"
-                  placeholder="自動計算"
-                  value={formData.total_price ?? ''}
-                  readOnly
-                  className="bg-muted"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isPurchaseType ? '(數量 × 單件成本) + 運費' : '(數量 × 單價) + 運費'}
-                </p>
-              </Field>
-              {isSaleType && (
+            ) : (
+              /* 單商品模式 - 原有 UI */
+              <>
                 <Field>
-                  <FieldLabel>利潤 (NT$)</FieldLabel>
+                  <FieldLabel>選擇商品</FieldLabel>
+                  <ProductSelector
+                    value={selectedProductId}
+                    onChange={handleProductSelect}
+                    orderType={formData.type || 'sale'}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    選擇商品後自動帶入名稱、規格與價格
+                  </p>
+                </Field>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Field>
+                    <FieldLabel>產品名稱</FieldLabel>
+                    <Input
+                      placeholder="輸入產品名稱"
+                      value={formData.product_name || ''}
+                      onChange={(e) => updateField('product_name', e.target.value || null)}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>規格</FieldLabel>
+                    <Input
+                      placeholder="輸入規格"
+                      value={formData.spec || ''}
+                      onChange={(e) => updateField('spec', e.target.value || null)}
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Field>
+                    <FieldLabel>數量</FieldLabel>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={formData.quantity ?? ''}
+                      onChange={(e) => updateField('quantity', e.target.value ? parseInt(e.target.value) : null)}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>單價 (NT$)</FieldLabel>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={formData.unit_price ?? ''}
+                      onChange={(e) => updateField('unit_price', e.target.value ? parseInt(e.target.value) : null)}
+                    />
+                  </Field>
+                </div>
+              </>
+            )}
+
+            {/* 單商品模式的成本欄位 */}
+            {!isMultiItem && (
+              <div className="grid grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel>
+                    {isPurchaseType ? '單件成本 (NT$)' : '成本 (NT$)'}
+                    {isPurchaseType && <span className="text-destructive ml-1">*</span>}
+                  </FieldLabel>
+                  <Input
+                    type="number"
+                    placeholder={isPurchaseType ? '輸入單件進貨成本' : '銷貨成本'}
+                    value={formData.cost ?? ''}
+                    onChange={(e) => updateField('cost', e.target.value ? parseInt(e.target.value) : null)}
+                    className={isPurchaseType ? 'border-primary/50' : ''}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isPurchaseType ? '每件商品的進貨成本' : '銷貨成本'}
+                  </p>
+                </Field>
+                <Field>
+                  <FieldLabel>運費 (NT$)</FieldLabel>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={formData.shipping_fee ?? ''}
+                    onChange={(e) => updateField('shipping_fee', e.target.value ? parseInt(e.target.value) : null)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    運費會加入總金額
+                  </p>
+                </Field>
+              </div>
+            )}
+
+            {/* 多商品模式只顯示運費 */}
+            {isMultiItem && (
+              <div className="grid grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel>運費 (NT$)</FieldLabel>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={formData.shipping_fee ?? ''}
+                    onChange={(e) => updateField('shipping_fee', e.target.value ? parseInt(e.target.value) : null)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>總金額 (NT$)</FieldLabel>
                   <Input
                     type="number"
                     placeholder="自動計算"
-                    value={formData.profit ?? ''}
+                    value={(orderItems.reduce((sum, item) => sum + item.subtotal, 0) + (formData.shipping_fee ?? 0)) || ''}
                     readOnly
                     className="bg-muted"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    總金額 - (數量 × 成本)
+                    商品金額 + 運費
                   </p>
                 </Field>
-              )}
-            </div>
+              </div>
+            )}
+
+            {/* 單商品模式的總金額和利潤 */}
+            {!isMultiItem && (
+              <div className={isPurchaseType ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-2 gap-4'}>
+                <Field>
+                  <FieldLabel>{isPurchaseType ? '總成本 (NT$)' : '總金額 (NT$)'}</FieldLabel>
+                  <Input
+                    type="number"
+                    placeholder="自動計算"
+                    value={formData.total_price ?? ''}
+                    readOnly
+                    className="bg-muted"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isPurchaseType ? '(數量 × 單件成本) + 運費' : '(數量 × 單價) + 運費'}
+                  </p>
+                </Field>
+                {isSaleType && (
+                  <Field>
+                    <FieldLabel>利潤 (NT$)</FieldLabel>
+                    <Input
+                      type="number"
+                      placeholder="自動計算"
+                      value={formData.profit ?? ''}
+                      readOnly
+                      className="bg-muted"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      總金額 - (數量 × 成本)
+                    </p>
+                  </Field>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-3 gap-4">
               <Field>
