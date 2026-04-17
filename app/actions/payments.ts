@@ -60,6 +60,7 @@ export async function createPayment(payment: PaymentInsert) {
   console.log('[v0] 寫入資料表 =', tableName)
   
   // 準備寫入的資料（使用 customer_name / supplier_name）
+  // payments 表有 type 和 party_name 欄位，receipts 表沒有
   const insertData = payment.type === 'receipt' 
     ? {
         customer_name: payment.party_name,
@@ -69,6 +70,8 @@ export async function createPayment(payment: PaymentInsert) {
         note: payment.note,
       }
     : {
+        type: 'payment',  // payments 表需要 type 欄位
+        party_name: payment.party_name,  // payments 表有 party_name 欄位
         supplier_name: payment.party_name,
         amount: payment.amount,
         date: payment.date,
