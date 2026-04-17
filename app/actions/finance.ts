@@ -29,10 +29,15 @@ export async function getReceivablesPayables(): Promise<{
     .from('orders')
     .select('customer_name, supplier, total_price, cost, type')
   
-  // 取得收付款資料
-  const { data: payments } = await supabase
+  // 取得收款資料（從 receipts 表，欄位為 customer_name）
+  const { data: receiptsData } = await supabase
+    .from('receipts')
+    .select('customer_name, amount')
+  
+  // 取得付款資料（從 payments 表，欄位為 supplier_name）
+  const { data: paymentsData } = await supabase
     .from('payments')
-    .select('type, party_name, amount')
+    .select('supplier_name, amount')
   
   // 計算收付款總額
   const receiptsMap = new Map<string, number>()
@@ -40,18 +45,18 @@ export async function getReceivablesPayables(): Promise<{
   let totalReceipts = 0
   let totalPayments = 0
   
-  payments?.forEach((p) => {
-    if (p.type === 'receipt') {
-      // 收款（客戶付款給我們）
-      const current = receiptsMap.get(p.party_name) || 0
-      receiptsMap.set(p.party_name, current + (p.amount || 0))
-      totalReceipts += p.amount || 0
-    } else {
-      // 付款（我們付款給供應商）
-      const current = paymentsToSupplierMap.get(p.party_name) || 0
-      paymentsToSupplierMap.set(p.party_name, current + (p.amount || 0))
-      totalPayments += p.amount || 0
-    }
+  receiptsData?.forEach((r) => {
+    if (!r.customer_name) return
+    const current = receiptsMap.get(r.customer_name) || 0
+    receiptsMap.set(r.customer_name, current + (r.amount || 0))
+    totalReceipts += r.amount || 0
+  })
+  
+  paymentsData?.forEach((p) => {
+    if (!p.supplier_name) return
+    const current = paymentsToSupplierMap.get(p.supplier_name) || 0
+    paymentsToSupplierMap.set(p.supplier_name, current + (p.amount || 0))
+    totalPayments += p.amount || 0
   })
   
   // 應收帳款來自客戶（銷貨用 total_price，銷退沖銷）

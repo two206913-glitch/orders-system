@@ -11,17 +11,17 @@ export async function GET() {
     .in('type', ['sale', 'sale_return'])
     .not('customer_name', 'is', null)
 
-  // 取得所有收款紀錄
-  const { data: payments } = await supabase
-    .from('payments')
-    .select('party_name, amount')
-    .eq('type', 'receipt')
+  // 取得所有收款紀錄（從 receipts 表，欄位為 customer_name）
+  const { data: receipts } = await supabase
+    .from('receipts')
+    .select('customer_name, amount')
 
   // 計算收款總額 by 客戶
   const receiptsMap = new Map<string, number>()
-  payments?.forEach((p) => {
-    const current = receiptsMap.get(p.party_name) || 0
-    receiptsMap.set(p.party_name, current + (p.amount || 0))
+  receipts?.forEach((r) => {
+    if (!r.customer_name) return
+    const current = receiptsMap.get(r.customer_name) || 0
+    receiptsMap.set(r.customer_name, current + (r.amount || 0))
   })
 
   // 計算應收金額 by 客戶
