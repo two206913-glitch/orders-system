@@ -83,11 +83,10 @@ export async function getMonthlyStats(year?: number): Promise<MonthlyStats[]> {
       return sum + (o.type === 'purchase_return' ? -shipping : shipping)
     }, 0)
     
-    // 計算銷售利潤（銷貨的 profit 欄位，銷退沖銷）
-    const profit = data.sales.reduce((sum, o) => {
-      const p = o.profit || 0
-      return sum + (o.type === 'sale_return' ? -p : p)
-    }, 0)
+    // 計算利潤 = 銷售營收 - 進貨成本 - 運費（含銷售運費和進貨運費）
+    // 若為負數需顯示負值
+    const totalShipping = salesShipping + purchaseShipping
+    const profit = salesRevenue - purchaseCost - totalShipping
     
     // 熱銷產品統計（只算銷貨）
     const productMap = new Map<string, { quantity: number; revenue: number }>()
