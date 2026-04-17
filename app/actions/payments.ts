@@ -17,7 +17,7 @@ export async function getPayments(filters?: {
   
   // 根據 type 決定從哪個資料表讀取
   const tableName = filters?.type === 'receipt' ? 'receipts' : 'payments'
-  const partyField = filters?.type === 'receipt' ? 'customer_id' : 'supplier_id'
+  const partyField = filters?.type === 'receipt' ? 'customer_name' : 'supplier_name'
 
   let query = supabase
     .from(tableName)
@@ -41,7 +41,7 @@ export async function getPayments(filters?: {
   const normalizedData = (data || []).map(item => ({
     ...item,
     type: filters?.type || 'payment',
-    party_name: item[partyField] || item.customer_id || item.supplier_id,
+    party_name: item[partyField] || item.customer_name || item.supplier_name,
   }))
 
   return { payments: normalizedData, total: count || 0 }
@@ -52,19 +52,23 @@ export async function createPayment(payment: PaymentInsert) {
   
   // 根據 type 決定寫入哪個資料表
   const tableName = payment.type === 'receipt' ? 'receipts' : 'payments'
-  const idField = payment.type === 'receipt' ? 'customer_id' : 'supplier_id'
   
-  // 準備寫入的資料（根據您的資料表結構）
-  const insertData = {
-    [idField]: payment.party_name, // 用 party_name 作為 customer_id 或 supplier_id
-    amount: payment.amount,
-    date: payment.date,
-    payment_method: payment.payment_method,
-    note: payment.note,
-  }
-
-  console.log('[v0] Inserting into table:', tableName)
-  console.log('[v0] Insert data:', insertData)
+  // 準備寫入的資料（使用 customer_name / supplier_name）
+  const insertData = payment.type === 'receipt' 
+    ? {
+        customer_name: payment.party_name,
+        amount: payment.amount,
+        date: payment.date,
+        payment_method: payment.payment_method,
+        note: payment.note,
+      }
+    : {
+        supplier_name: payment.party_name,
+        amount: payment.amount,
+        date: payment.date,
+        payment_method: payment.payment_method,
+        note: payment.note,
+      }
 
   const { data, error } = await supabase
     .from(tableName)
@@ -118,13 +122,13 @@ async function updateOrderPaymentStatus(
   }, 0)
 
   // 取得已收/已付總額（從對應的表）
-  const tableName = type === 'receipt' ? 'receipts' : 'payments'
-  const partyField = type === 'receipt' ? 'customer_id' : 'supplier_id'
+  const paymentTableName = type === 'receipt' ? 'receipts' : 'payments'
+  const paymentPartyField = type === 'receipt' ? 'customer_name' : 'supplier_name'
   
   const { data: payments } = await supabase
-    .from(tableName)
+    .from(paymentTableName)
     .select('amount')
-    .eq(partyField, partyName)
+    .eq(paymentPartyField, partyName)
 
   const totalPaid = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0
 
@@ -166,7 +170,7 @@ export async function deletePayment(id: string, type: 'receipt' | 'payment') {
   const supabase = await createClient()
   
   const tableName = type === 'receipt' ? 'receipts' : 'payments'
-  const partyField = type === 'receipt' ? 'customer_id' : 'supplier_id'
+  const partyField = type === 'receipt' ? 'customer_name' : 'supplier_name'
 
   // 先取得資料以便刪除後重新計算狀態
   const { data: payment } = await supabase
@@ -197,7 +201,7 @@ export async function getPaymentsByParty(partyName: string, type: 'receipt' | 'p
   const supabase = await createClient()
   
   const tableName = type === 'receipt' ? 'receipts' : 'payments'
-  const partyField = type === 'receipt' ? 'customer_id' : 'supplier_id'
+  const partyField = type === 'receipt' ? 'customer_name' : 'supplier_name'
 
   const { data, error } = await supabase
     .from(tableName)
