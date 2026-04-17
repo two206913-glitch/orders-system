@@ -11,17 +11,17 @@ export async function GET() {
     .in('type', ['purchase', 'purchase_return'])
     .not('supplier', 'is', null)
 
-  // 取得所有付款紀錄
-  const { data: payments } = await supabase
+  // 取得所有付款紀錄（從 payments 表，欄位為 supplier_name）
+  const { data: paymentsData } = await supabase
     .from('payments')
-    .select('party_name, amount')
-    .eq('type', 'payment')
+    .select('supplier_name, amount')
 
   // 計算付款總額 by 供應商
   const paymentsMap = new Map<string, number>()
-  payments?.forEach((p) => {
-    const current = paymentsMap.get(p.party_name) || 0
-    paymentsMap.set(p.party_name, current + (p.amount || 0))
+  paymentsData?.forEach((p) => {
+    if (!p.supplier_name) return
+    const current = paymentsMap.get(p.supplier_name) || 0
+    paymentsMap.set(p.supplier_name, current + (p.amount || 0))
   })
 
   // 計算應付金額 by 供應商
