@@ -143,24 +143,30 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
   useEffect(() => {
     const quantity = formData.quantity ?? 0
     const unitPrice = formData.unit_price ?? 0
-    const cost = formData.cost ?? 0
+    const unitCost = formData.cost ?? 0 // 進貨時為單件成本
     const shippingFee = formData.shipping_fee ?? 0
     const type = formData.type || 'sale'
+    const isPurchase = type === 'purchase' || type === 'purchase_return'
     
-    // 商品金額 = 數量 × 單價
-    const subtotal = quantity * unitPrice
-    // 總金額 = 商品金額 + 運費
-    const total = subtotal + shippingFee
-    
-    // 利潤計算邏輯：
-    // - 銷貨：利潤 = 總價 - 成本（成本包含商品成本）
-    // - 銷貨退回：利潤為負數（退還）
-    // - 進貨/進貨退回：不計算利潤
+    let total: number
     let profit: number | null = null
-    if (type === 'sale') {
-      profit = cost > 0 ? total - cost : null
-    } else if (type === 'sale_return') {
-      profit = cost > 0 ? -(total - cost) : null
+    
+    if (isPurchase) {
+      // 進貨單：總成本 = 數量 × 單件成本 + 運費
+      total = (quantity * unitCost) + shippingFee
+      // 進貨不計算利潤
+      profit = null
+    } else {
+      // 銷貨單：總金額 = 數量 × 單價 + 運費
+      const subtotal = quantity * unitPrice
+      total = subtotal + shippingFee
+      
+      // 銷貨利潤計算
+      if (type === 'sale') {
+        profit = unitCost > 0 ? total - (quantity * unitCost) : null
+      } else if (type === 'sale_return') {
+        profit = unitCost > 0 ? -((total) - (quantity * unitCost)) : null
+      }
     }
     
     setFormData((prev) => ({
@@ -315,18 +321,18 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
             <div className="grid grid-cols-2 gap-4">
               <Field>
                 <FieldLabel>
-                  成本 (NT$)
+                  {isPurchaseType ? '單件成本 (NT$)' : '成本 (NT$)'}
                   {isPurchaseType && <span className="text-destructive ml-1">*</span>}
                 </FieldLabel>
                 <Input
                   type="number"
-                  placeholder={isPurchaseType ? '進貨成本' : '銷貨成本'}
+                  placeholder={isPurchaseType ? '輸入單件進貨成本' : '銷貨成本'}
                   value={formData.cost ?? ''}
                   onChange={(e) => updateField('cost', e.target.value ? parseInt(e.target.value) : null)}
                   className={isPurchaseType ? 'border-primary/50' : ''}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  {isPurchaseType ? '進貨總成本' : '銷貨成本'}
+                  {isPurchaseType ? '每件商品的進貨成本' : '銷貨成本'}
                 </p>
               </Field>
               <Field>
@@ -343,9 +349,9 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
               </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className={isPurchaseType ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-2 gap-4'}>
               <Field>
-                <FieldLabel>總金額 (NT$)</FieldLabel>
+                <FieldLabel>{isPurchaseType ? '總成本 (NT$)' : '總金額 (NT$)'}</FieldLabel>
                 <Input
                   type="number"
                   placeholder="自動計算"
@@ -354,22 +360,24 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                   className="bg-muted"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  (數量 × 單價) + 運費
+                  {isPurchaseType ? '(數量 × 單件成本) + 運費' : '(數量 × 單價) + 運費'}
                 </p>
               </Field>
-              <Field>
-                <FieldLabel>利潤 (NT$)</FieldLabel>
-                <Input
-                  type="number"
-                  placeholder={isSaleType ? '自動計算' : '不適用'}
-                  value={formData.profit ?? ''}
-                  readOnly
-                  className="bg-muted"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isSaleType ? '總金額 - 成本' : '進貨不計算利潤'}
-                </p>
-              </Field>
+              {isSaleType && (
+                <Field>
+                  <FieldLabel>利潤 (NT$)</FieldLabel>
+                  <Input
+                    type="number"
+                    placeholder="自動計算"
+                    value={formData.profit ?? ''}
+                    readOnly
+                    className="bg-muted"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    總金額 - (數量 × 成本)
+                  </p>
+                </Field>
+              )}
             </div>
 
             <div className="grid grid-cols-3 gap-4">

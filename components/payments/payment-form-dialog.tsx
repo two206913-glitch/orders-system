@@ -22,7 +22,8 @@ import { Field, FieldLabel } from '@/components/ui/field'
 import { createPayment, updatePayment } from '@/app/actions/payments'
 import type { Payment, PaymentInsert } from '@/lib/types/payment'
 import { PAYMENT_METHODS } from '@/lib/types/order'
-import { PAYMENT_METHOD_LABELS } from '@/lib/locale'
+import { PAYMENT_METHOD_LABELS, formatCurrency } from '@/lib/locale'
+import { toast } from 'sonner'
 
 interface PaymentFormDialogProps {
   open: boolean
@@ -33,6 +34,7 @@ interface PaymentFormDialogProps {
   defaultParty?: string
   defaultPartyName?: string
   suggestedAmount?: number
+  maxAmount?: number // 最大可收/付金額（應收/應付餘額）
   onSuccess?: () => void
 }
 
@@ -45,6 +47,7 @@ export function PaymentFormDialog({
   defaultParty = '',
   defaultPartyName = '',
   suggestedAmount,
+  maxAmount,
   onSuccess,
 }: PaymentFormDialogProps) {
   const router = useRouter()
@@ -94,13 +97,28 @@ export function PaymentFormDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // 金額驗證：不可超過最大可收/付金額
+    if (maxAmount !== undefined && formData.amount > maxAmount) {
+      toast.error(`金額不可超過 ${formatCurrency(maxAmount)}`)
+      return
+    }
+    
+    // 金額不可為負數
+    if (formData.amount <= 0) {
+      toast.error('金額必須大於 0')
+      return
+    }
+    
     setIsSubmitting(true)
 
     try {
       if (isEditing && payment) {
         await updatePayment({ id: payment.id, ...formData })
+        toast.success('更新成功')
       } else {
         await createPayment(formData)
+        toast.success(isReceipt ? '收款已記錄' : '付款已記錄')
       }
       onOpenChange(false)
       if (onSuccess) {
@@ -110,6 +128,7 @@ export function PaymentFormDialog({
       }
     } catch (error) {
       console.error('Failed to save payment:', error)
+      toast.error('儲存失敗')
     } finally {
       setIsSubmitting(false)
     }
@@ -174,7 +193,13 @@ export function PaymentFormDialog({
                 onChange={(e) => updateField('amount', e.target.value ? parseInt(e.target.value) : 0)}
                 required
                 min={1}
+                max={maxAmount}
               />
+              {maxAmount !== undefined && maxAmount > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isReceipt ? '未收餘額' : '未付餘額'}：{formatCurrency(maxAmount)}
+                </p>
+              )}
             </Field>
             <Field>
               <FieldLabel>付款方式</FieldLabel>

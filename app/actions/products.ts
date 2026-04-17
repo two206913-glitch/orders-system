@@ -108,6 +108,21 @@ export async function deleteProduct(id: string) {
   }
 }
 
+// 切換商品啟用/停用狀態
+export async function toggleProductStatus(id: string, isActive: boolean) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('products')
+    .update({ is_active: isActive })
+    .eq('id', id)
+
+  if (error) {
+    console.error('Error toggling product status:', error)
+    throw new Error('Failed to toggle product status')
+  }
+}
+
 export async function updateProductStock(id: string, stockChange: number) {
   const supabase = await createClient()
 

@@ -28,7 +28,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Package, Plus, Search, MoreHorizontal, Pencil, Trash2, Eye, EyeOff } from 'lucide-react'
-import { getProducts, getProductCategories, getProductSuppliers, deleteProduct } from '@/app/actions/products'
+import { getProducts, getProductCategories, getProductSuppliers, deleteProduct, toggleProductStatus } from '@/app/actions/products'
+import { toast } from 'sonner'
 import { ProductFormDialog } from '@/components/products/product-form-dialog'
 import { formatCurrency } from '@/lib/locale'
 import type { Product } from '@/lib/types/product'
@@ -114,6 +115,22 @@ export default function ProductsPage() {
     } catch (error) {
       console.error('Error deleting product:', error)
       alert('停用商品失敗')
+    }
+  }
+
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+  
+  const handleToggleStatus = async (product: Product) => {
+    setTogglingId(product.id)
+    try {
+      await toggleProductStatus(product.id, !product.is_active)
+      toast.success(product.is_active ? '商品已停用' : '商品已啟用')
+      loadData()
+    } catch (error) {
+      console.error('Error toggling product status:', error)
+      toast.error('狀態更新失敗')
+    } finally {
+      setTogglingId(null)
     }
   }
 
@@ -263,15 +280,30 @@ export default function ProductsPage() {
                   <TableCell className="text-right">{formatCurrency(product.cost)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(product.price)}</TableCell>
                   <TableCell>
-                    {product.is_active ? (
-                      <Badge variant="outline" className="text-success border-success">
-                        啟用
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-muted-foreground">
-                        停用
-                      </Badge>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={togglingId === product.id}
+                      onClick={() => handleToggleStatus(product)}
+                      className={product.is_active 
+                        ? 'text-warning border-warning hover:bg-warning/10' 
+                        : 'text-success border-success hover:bg-success/10'
+                      }
+                    >
+                      {togglingId === product.id ? (
+                        <span className="animate-spin mr-1">...</span>
+                      ) : product.is_active ? (
+                        <>
+                          <EyeOff className="h-3 w-3 mr-1" />
+                          停用
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="h-3 w-3 mr-1" />
+                          啟用
+                        </>
+                      )}
+                    </Button>
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
@@ -284,13 +316,6 @@ export default function ProductsPage() {
                         <DropdownMenuItem onClick={() => handleEdit(product)}>
                           <Pencil className="h-4 w-4 mr-2" />
                           編輯
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleDelete(product)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          停用
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
