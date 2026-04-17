@@ -14,17 +14,17 @@ export async function getPayments(filters?: {
   const page = filters?.page || 1
   const pageSize = filters?.pageSize || 20
   const offset = (page - 1) * pageSize
+  
+  // 根據 type 決定從哪個資料表讀取
+  const tableName = filters?.type === 'receipt' ? 'receipts' : 'payments'
+  const partyField = filters?.type === 'receipt' ? 'customer_id' : 'supplier_id'
 
   let query = supabase
-    .from('payments')
+    .from(tableName)
     .select('*', { count: 'exact' })
 
-  if (filters?.type) {
-    query = query.eq('type', filters.type)
-  }
-
   if (filters?.party) {
-    query = query.ilike('party_name', `%${filters.party}%`)
+    query = query.ilike(partyField, `%${filters.party}%`)
   }
 
   query = query.order('date', { ascending: false })
@@ -33,26 +33,51 @@ export async function getPayments(filters?: {
   const { data, error, count } = await query
 
   if (error) {
-    console.error('Error fetching payments:', error)
+    console.error(`Error fetching ${tableName}:`, error)
     return { payments: [], total: 0 }
   }
 
-  return { payments: data || [], total: count || 0 }
+  // 轉換資料格式，統一欄位名稱
+  const normalizedData = (data || []).map(item => ({
+    ...item,
+    type: filters?.type || 'payment',
+    party_name: item[partyField] || item.customer_id || item.supplier_id,
+  }))
+
+  return { payments: normalizedData, total: count || 0 }
 }
 
 export async function createPayment(payment: PaymentInsert) {
   const supabase = await createClient()
+  
+  // 根據 type 決定寫入哪個資料表
+  const tableName = payment.type === 'receipt' ? 'receipts' : 'payments'
+  const idField = payment.type === 'receipt' ? 'customer_id' : 'supplier_id'
+  
+  // 準備寫入的資料（根據您的資料表結構）
+  const insertData = {
+    [idField]: payment.party_name, // 用 party_name 作為 customer_id 或 supplier_id
+    amount: payment.amount,
+    date: payment.date,
+    payment_method: payment.payment_method,
+    note: payment.note,
+  }
+
+  console.log('[v0] Inserting into table:', tableName)
+  console.log('[v0] Insert data:', insertData)
 
   const { data, error } = await supabase
-    .from('payments')
-    .insert(payment)
+    .from(tableName)
+    .insert(insertData)
     .select()
     .single()
 
   if (error) {
-    console.error('Error creating payment:', error)
-    throw new Error('Failed to create payment')
+    console.error('[v0] Error creating payment:', error)
+    throw new Error(`Failed to create ${payment.type}: ${error.message}`)
   }
+
+  console.log('[v0] Insert success:', data)
 
   // 收款/付款後更新對應訂單的付款狀態
   await updateOrderPaymentStatus(supabase, payment.party_name, payment.type)
@@ -92,12 +117,14 @@ async function updateOrderPaymentStatus(
     return sum + amount
   }, 0)
 
-  // 取得已收/已付總額
+  // 取得已收/已付總額（從對應的表）
+  const tableName = type === 'receipt' ? 'receipts' : 'payments'
+  const partyField = type === 'receipt' ? 'customer_id' : 'supplier_id'
+  
   const { data: payments } = await supabase
-    .from('payments')
+    .from(tableName)
     .select('amount')
-    .eq('party_name', partyName)
-    .eq('type', type)
+    .eq(partyField, partyName)
 
   const totalPaid = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0
 
@@ -135,64 +162,75 @@ export async function updatePayment(payment: PaymentUpdate) {
   }
 }
 
-export async function deletePayment(id: string) {
+export async function deletePayment(id: string, type: 'receipt' | 'payment') {
   const supabase = await createClient()
+  
+  const tableName = type === 'receipt' ? 'receipts' : 'payments'
+  const partyField = type === 'receipt' ? 'customer_id' : 'supplier_id'
 
-  // 先取得付款資料以便刪除後重新計算狀態
+  // 先取得資料以便刪除後重新計算狀態
   const { data: payment } = await supabase
-    .from('payments')
-    .select('party_name, type')
+    .from(tableName)
+    .select(partyField)
     .eq('id', id)
     .single()
 
   const { error } = await supabase
-    .from('payments')
+    .from(tableName)
     .delete()
     .eq('id', id)
 
   if (error) {
-    console.error('Error deleting payment:', error)
-    throw new Error('Failed to delete payment')
+    console.error(`Error deleting ${tableName}:`, error)
+    throw new Error(`Failed to delete ${type}`)
   }
 
   // 刪除後重新計算訂單付款狀態
   if (payment) {
-    await updateOrderPaymentStatus(supabase, payment.party_name, payment.type as 'receipt' | 'payment')
+    const partyName = payment[partyField] as string
+    await updateOrderPaymentStatus(supabase, partyName, type)
   }
 }
 
 // 取得特定對象的收付款紀錄
 export async function getPaymentsByParty(partyName: string, type: 'receipt' | 'payment') {
   const supabase = await createClient()
+  
+  const tableName = type === 'receipt' ? 'receipts' : 'payments'
+  const partyField = type === 'receipt' ? 'customer_id' : 'supplier_id'
 
   const { data, error } = await supabase
-    .from('payments')
+    .from(tableName)
     .select('*')
-    .eq('party_name', partyName)
-    .eq('type', type)
+    .eq(partyField, partyName)
     .order('date', { ascending: false })
 
   if (error) {
-    console.error('Error fetching payments by party:', error)
+    console.error(`Error fetching ${tableName} by party:`, error)
     return []
   }
 
-  return data || []
+  // 轉換資料格式
+  return (data || []).map(item => ({
+    ...item,
+    type,
+    party_name: item[partyField],
+  }))
 }
 
 // 取得收付款總計
 export async function getPaymentTotals() {
   const supabase = await createClient()
 
+  // 從 receipts 表讀取收款
   const { data: receipts } = await supabase
-    .from('payments')
+    .from('receipts')
     .select('amount')
-    .eq('type', 'receipt')
 
+  // 從 payments 表讀取付款
   const { data: payments } = await supabase
     .from('payments')
     .select('amount')
-    .eq('type', 'payment')
 
   const totalReceipts = receipts?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0
   const totalPayments = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0
