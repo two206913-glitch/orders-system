@@ -70,8 +70,9 @@ export async function createPayment(payment: PaymentInsert) {
         note: payment.note,
       }
     : {
-        type: 'payment',  // payments 表需要 type 欄位
-        party_name: payment.party_name,  // payments 表有 party_name 欄位
+        type: 'payment',
+        party_type: 'supplier',
+        party_name: payment.party_name,
         supplier_name: payment.party_name,
         amount: payment.amount,
         date: payment.date,
