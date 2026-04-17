@@ -89,12 +89,11 @@ export async function getCustomerInvoice(
     .lte('date', dateTo)
     .order('date', { ascending: true })
   
-  // 取得該客戶的所有收款紀錄（不限日期，累計總收款）
+  // 取得該客戶的所有收款紀錄（從 receipts 表，用 customer_name 欄位）
   const { data: receipts } = await supabase
-    .from('payments')
+    .from('receipts')
     .select('amount')
-    .eq('type', 'receipt')
-    .eq('party_name', customerName)
+    .eq('customer_name', customerName)
   
   // 取得該客戶的所有訂單總額（用於計算總應收）
   const { data: allOrders } = await supabase
@@ -176,12 +175,11 @@ export async function getSupplierInvoice(
     .lte('date', dateTo)
     .order('date', { ascending: true })
   
-  // 取得該供應商的所有付款紀錄（不限日期，累計總付款）
+  // 取得該供應商的所有付款紀錄（從 payments 表，用 supplier_name 欄位）
   const { data: payments } = await supabase
     .from('payments')
     .select('amount')
-    .eq('type', 'payment')
-    .eq('party_name', supplierName)
+    .eq('supplier_name', supplierName)
   
   // 取得該供應商的所有訂單總額（用於計算總應付）
   const { data: allOrders } = await supabase
@@ -269,9 +267,8 @@ export async function getCustomerReceivables(showSettled: boolean = false): Prom
     .not('customer_name', 'is', null)
   
   const { data: receipts } = await supabase
-    .from('payments')
-    .select('party_name, amount')
-    .eq('type', 'receipt')
+    .from('receipts')
+    .select('customer_name, amount')
   
   const customersMap = new Map<string, { total: number; received: number }>()
   
@@ -285,7 +282,7 @@ export async function getCustomerReceivables(showSettled: boolean = false): Prom
   })
   
   receipts?.forEach(r => {
-    const name = r.party_name
+    const name = r.customer_name
     if (!name) return
     const current = customersMap.get(name)
     if (current) {
@@ -324,8 +321,7 @@ export async function getSupplierPayables(showSettled: boolean = false): Promise
   
   const { data: payments } = await supabase
     .from('payments')
-    .select('party_name, amount')
-    .eq('type', 'payment')
+    .select('supplier_name, amount')
   
   const suppliersMap = new Map<string, { total: number; paid: number }>()
   
@@ -339,7 +335,7 @@ export async function getSupplierPayables(showSettled: boolean = false): Promise
   })
   
   payments?.forEach(p => {
-    const name = p.party_name
+    const name = p.supplier_name
     if (!name) return
     const current = suppliersMap.get(name)
     if (current) {
