@@ -83,8 +83,9 @@ async function updateOrderPaymentStatus(
 
   // 計算總應收/應付
   const totalAmount = orders.reduce((sum, order) => {
-    const amount = (order as Record<string, number | string>)[amountField] as number || 0
-    const orderType = order.type
+    const orderRecord = order as unknown as Record<string, number | string | null>
+    const amount = (orderRecord[amountField] as number) || 0
+    const orderType = orderRecord.type as string
     if (orderType === 'sale_return' || orderType === 'purchase_return') {
       return sum - amount
     }

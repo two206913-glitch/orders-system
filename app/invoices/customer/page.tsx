@@ -22,7 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
-import { FileText, Download, Plus, CheckCircle2, AlertCircle } from 'lucide-react'
+import { FileText, Download, CheckCircle2, AlertCircle } from 'lucide-react'
 import { formatCurrency, formatDate, getOrderTypeLabel } from '@/lib/locale'
 import {
   getCustomerList,
@@ -30,7 +30,6 @@ import {
   getCustomerInvoice,
   type CustomerInvoice,
 } from '@/app/actions/invoices'
-import { PaymentFormDialog } from '@/components/payments/payment-form-dialog'
 import { InvoiceDocument } from '@/components/invoices/invoice-document'
 import { PaymentHistoryDialog } from '@/components/invoices/payment-history-dialog'
 
@@ -52,7 +51,6 @@ export default function CustomerInvoicePage() {
   const [dateTo, setDateTo] = useState('')
   const [invoice, setInvoice] = useState<CustomerInvoice | null>(null)
   const [loading, setLoading] = useState(false)
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false)
   const [showInvoiceDoc, setShowInvoiceDoc] = useState(false)
   const [showHistoryDialog, setShowHistoryDialog] = useState(false)
   
@@ -151,8 +149,7 @@ export default function CustomerInvoicePage() {
     URL.revokeObjectURL(url)
   }
   
-  const handlePaymentSuccess = () => {
-    setShowPaymentDialog(false)
+  const handleRefresh = () => {
     // 重新載入資料
     handleGenerateInvoice()
     getCustomerReceivables(showSettled).then(setReceivables)
@@ -243,12 +240,6 @@ export default function CustomerInvoicePage() {
                 <Download className="h-4 w-4 mr-2" />
                 匯出 Excel
               </Button>
-              {!invoice.is_settled && (
-                <Button size="sm" onClick={() => setShowPaymentDialog(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  新增收款
-                </Button>
-              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -440,18 +431,6 @@ export default function CustomerInvoicePage() {
         </CardContent>
       </Card>
       
-      {/* 收款對話框 */}
-      {showPaymentDialog && invoice && (
-        <PaymentFormDialog
-          open={showPaymentDialog}
-          onOpenChange={setShowPaymentDialog}
-          type="receipt"
-          defaultPartyName={invoice.customer_name}
-          suggestedAmount={invoice.pending_amount}
-          onSuccess={handlePaymentSuccess}
-        />
-      )}
-      
       {/* 列印預覽 */}
       {showInvoiceDoc && invoice && (
         <InvoiceDocument
@@ -469,7 +448,7 @@ export default function CustomerInvoicePage() {
           onOpenChange={setShowHistoryDialog}
           partyName={invoice.customer_name}
           type="receipt"
-          onRefresh={handlePaymentSuccess}
+          onRefresh={handleRefresh}
         />
       )}
     </div>

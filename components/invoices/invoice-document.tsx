@@ -199,21 +199,21 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">{isCustomer ? '銷貨小計' : '進貨小計'}</span>
-                  <span className="font-medium">{formatCurrency(subTotal)}</span>
+                  <span className="font-medium">{formatCurrency(subTotal ?? 0)}</span>
                 </div>
                 {(shippingTotal ?? 0) > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">含運費</span>
-                    <span className="font-medium text-primary">{formatCurrency(shippingTotal)}</span>
+                    <span className="font-medium text-primary">{formatCurrency(shippingTotal ?? 0)}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">{isCustomer ? '銷退合計' : '進退合計'}</span>
-                  <span className="font-medium text-destructive">-{formatCurrency(returnTotal)}</span>
+                  <span className="font-medium text-destructive">-{formatCurrency(returnTotal ?? 0)}</span>
                 </div>
                 <div className="border-t pt-2 mt-2 flex justify-between">
                   <span className="font-semibold">{isCustomer ? '本期應收' : '本期應付'}</span>
-                  <span className="font-bold text-lg">{formatCurrency(netTotal)}</span>
+                  <span className="font-bold text-lg">{formatCurrency(netTotal ?? 0)}</span>
                 </div>
               </div>
             </div>
@@ -223,12 +223,12 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">{isCustomer ? '累計已收' : '累計已付'}</span>
-                  <span className="font-medium text-success">{formatCurrency(paidAmount)}</span>
+                  <span className="font-medium text-success">{formatCurrency(paidAmount ?? 0)}</span>
                 </div>
                 <div className="border-t pt-2 mt-2 flex justify-between">
                   <span className="font-semibold">{isCustomer ? '未收金額' : '未付金額'}</span>
                   <span className={`font-bold text-lg ${(pendingAmount ?? 0) > 0 ? 'text-warning' : 'text-success'}`}>
-                    {formatCurrency(pendingAmount)}
+                    {formatCurrency(pendingAmount ?? 0)}
                   </span>
                 </div>
               </div>

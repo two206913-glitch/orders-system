@@ -135,28 +135,38 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
           </div>
 
           {/* 金額資訊 */}
-          <div className="rounded-lg bg-muted/50 p-4 space-y-3">
-            <div className="grid grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">成本</span>
-                <p className="font-medium">{formatCurrency(order.cost)}</p>
+          {(() => {
+            const orderType = order.type || 'sale'
+            const isPurchase = orderType === 'purchase' || orderType === 'purchase_return'
+            const isSale = orderType === 'sale' || orderType === 'sale_return'
+            
+            return (
+              <div className="rounded-lg bg-muted/50 p-4 space-y-3">
+                <div className={`grid ${isSale ? 'grid-cols-4' : 'grid-cols-3'} gap-4 text-sm`}>
+                  <div>
+                    <span className="text-muted-foreground">{isPurchase ? '單件成本' : '成本'}</span>
+                    <p className="font-medium">{formatCurrency(order.cost)}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">運費</span>
+                    <p className="font-medium">{formatCurrency(order.shipping_fee)}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">{isPurchase ? '總成本' : '總金額'}</span>
+                    <p className="font-medium">{formatCurrency(order.total_price)}</p>
+                  </div>
+                  {isSale && (
+                    <div>
+                      <span className="text-muted-foreground">利潤</span>
+                      <p className={`font-medium ${(order.profit ?? 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
+                        {formatCurrency(order.profit)}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div>
-                <span className="text-muted-foreground">運費</span>
-                <p className="font-medium">{formatCurrency(order.shipping_fee)}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">總金額</span>
-                <p className="font-medium">{formatCurrency(order.total_price)}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">利潤</span>
-                <p className={`font-medium ${(order.profit ?? 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
-                  {formatCurrency(order.profit)}
-                </p>
-              </div>
-            </div>
-          </div>
+            )
+          })()}
 
           <Separator />
 
