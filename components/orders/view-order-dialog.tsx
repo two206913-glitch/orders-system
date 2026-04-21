@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -8,7 +9,16 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import type { Order } from '@/lib/types/order'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import type { Order, OrderItem } from '@/lib/types/order'
+import { getOrderItems } from '@/app/actions/orders'
 import {
   formatCurrency,
   formatDateLong,
@@ -71,8 +81,28 @@ function DetailItem({ icon: Icon, label, value, className = '' }: DetailItemProp
 }
 
 export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogProps) {
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([])
+  const [loadingItems, setLoadingItems] = useState(false)
+
+  // 載入 order_items
+  useEffect(() => {
+    if (open && order) {
+      setLoadingItems(true)
+      getOrderItems(order.id)
+        .then(setOrderItems)
+        .finally(() => setLoadingItems(false))
+    } else {
+      setOrderItems([])
+    }
+  }, [open, order])
+
   if (!order) return null
 
+  const hasMultipleItems = orderItems.length > 0
+  const orderType = order.type || 'sale'
+  const isSaleType = orderType === 'sale' || orderType === 'sale_return'
+  const isPurchaseType = orderType === 'purchase' || orderType === 'purchase_return'
+  
   const createdAt = order.created_at
     ? new Date(order.created_at).toLocaleString('zh-TW', {
         year: 'numeric',
@@ -126,47 +156,77 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
 
           <Separator />
 
-          {/* 產品資訊 */}
-          <div className="grid grid-cols-2 gap-4">
-            <DetailItem icon={Package} label="產品" value={order.product_name || '-'} />
-            <DetailItem label="規格" value={order.spec || '-'} />
-            <DetailItem label="數量" value={order.quantity?.toLocaleString('zh-TW') || '-'} />
-            <DetailItem label="單價" value={formatCurrency(order.unit_price)} />
-          </div>
+          {/* 產品資訊 - 多商品逐列顯示 */}
+          {loadingItems ? (
+            <div className="text-center py-4 text-muted-foreground">載入商品明細...</div>
+          ) : hasMultipleItems ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <Package className="h-3.5 w-3.5" />
+                商品明細
+              </div>
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40">
+                      <TableHead className="text-xs">商品名稱</TableHead>
+                      <TableHead className="text-xs">規格</TableHead>
+                      <TableHead className="text-xs text-right">數量</TableHead>
+                      <TableHead className="text-xs text-right">{isSaleType ? '售價' : '成本'}</TableHead>
+                      <TableHead className="text-xs text-right">小計</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orderItems.map((item, idx) => (
+                      <TableRow key={item.id || idx}>
+                        <TableCell className="font-medium">{item.product_name}</TableCell>
+                        <TableCell className="text-muted-foreground">{item.product_variant || '-'}</TableCell>
+                        <TableCell className="text-right tabular-nums">{item.quantity.toLocaleString('zh-TW')}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatCurrency(item.unit_price)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">{formatCurrency(item.subtotal)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ) : (
+            /* 單商品顯示（舊訂單或只有一個商品） */
+            <div className="grid grid-cols-2 gap-4">
+              <DetailItem icon={Package} label="產品" value={order.product_name || '-'} />
+              <DetailItem label="規格" value={order.spec || '-'} />
+              <DetailItem label="數量" value={order.quantity?.toLocaleString('zh-TW') || '-'} />
+              <DetailItem label={isSaleType ? '售價' : '成本'} value={formatCurrency(order.unit_price)} />
+            </div>
+          )}
 
           {/* 金額資訊 */}
-          {(() => {
-            const orderType = order.type || 'sale'
-            const isPurchase = orderType === 'purchase' || orderType === 'purchase_return'
-            const isSale = orderType === 'sale' || orderType === 'sale_return'
-            
-            return (
-              <div className="rounded-lg bg-muted/50 p-4 space-y-3">
-                <div className={`grid ${isSale ? 'grid-cols-4' : 'grid-cols-3'} gap-4 text-sm`}>
-                  <div>
-                    <span className="text-muted-foreground">{isPurchase ? '單件成本' : '成本'}</span>
-                    <p className="font-medium">{formatCurrency(order.cost)}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">運費</span>
-                    <p className="font-medium">{formatCurrency(order.shipping_fee)}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">{isPurchase ? '總成本' : '總金額'}</span>
-                    <p className="font-medium">{formatCurrency(order.total_price)}</p>
-                  </div>
-                  {isSale && (
-                    <div>
-                      <span className="text-muted-foreground">利潤</span>
-                      <p className={`font-medium ${(order.profit ?? 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
-                        {formatCurrency(order.profit)}
-                      </p>
-                    </div>
-                  )}
+          <div className="rounded-lg bg-muted/50 p-4 space-y-3">
+            <div className={`grid ${isSaleType ? 'grid-cols-4' : 'grid-cols-3'} gap-4 text-sm`}>
+              {!hasMultipleItems && (
+                <div>
+                  <span className="text-muted-foreground">{isPurchaseType ? '單件成本' : '成本'}</span>
+                  <p className="font-medium">{formatCurrency(order.cost)}</p>
                 </div>
+              )}
+              <div>
+                <span className="text-muted-foreground">運費</span>
+                <p className="font-medium">{formatCurrency(order.shipping_fee)}</p>
               </div>
-            )
-          })()}
+              <div>
+                <span className="text-muted-foreground">{isPurchaseType ? '總成本' : '總金額'}</span>
+                <p className="font-medium">{formatCurrency(order.total_price)}</p>
+              </div>
+              {isSaleType && (
+                <div>
+                  <span className="text-muted-foreground">利潤</span>
+                  <p className={`font-medium ${(order.profit ?? 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
+                    {formatCurrency(order.profit)}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
 
           <Separator />
 
