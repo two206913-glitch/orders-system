@@ -12,9 +12,10 @@ interface OrderItemsFormProps {
   items: OrderItem[]
   onChange: (items: OrderItem[]) => void
   orderType: string
+  selectedSupplier?: string | null  // 進貨時已選擇的供應商
 }
 
-export function OrderItemsForm({ items, onChange, orderType }: OrderItemsFormProps) {
+export function OrderItemsForm({ items, onChange, orderType, selectedSupplier }: OrderItemsFormProps) {
   const isPurchase = orderType === 'purchase' || orderType === 'purchase_return'
   const isSale = orderType === 'sale' || orderType === 'sale_return'
 
@@ -41,18 +42,11 @@ export function OrderItemsForm({ items, onChange, orderType }: OrderItemsFormPro
     const newItems = [...items]
     const item = { ...newItems[index], [field]: value }
     
-    // 自動計算小計
-    if (field === 'quantity' || field === 'unit_price' || field === 'cost') {
+    // 自動計算小計：統一使用 unit_price（銷貨時為售價，進貨時為成本）
+    if (field === 'quantity' || field === 'unit_price') {
       const qty = field === 'quantity' ? (value as number) : item.quantity
-      if (isPurchase) {
-        // 進貨：小計 = 數量 × 成本
-        const cost = field === 'cost' ? (value as number) : item.cost
-        item.subtotal = qty * cost
-      } else {
-        // 銷貨：小計 = 數量 × 單價
-        const price = field === 'unit_price' ? (value as number) : item.unit_price
-        item.subtotal = qty * price
-      }
+      const price = field === 'unit_price' ? (value as number) : item.unit_price
+      item.subtotal = qty * price
     }
     
     newItems[index] = item
@@ -80,15 +74,12 @@ export function OrderItemsForm({ items, onChange, orderType }: OrderItemsFormPro
     item.product_id = product.id
     item.product_name = product.name
     item.product_variant = product.variant
-    item.cost = product.cost
+    // 進貨時 unit_price = cost，銷貨時 unit_price = price
     item.unit_price = isPurchase ? product.cost : product.price
+    item.cost = product.cost  // 保留成本用於利潤計算
     
-    // 計算小計
-    if (isPurchase) {
-      item.subtotal = item.quantity * item.cost
-    } else {
-      item.subtotal = item.quantity * item.unit_price
-    }
+    // 計算小計（統一用 unit_price）
+    item.subtotal = item.quantity * item.unit_price
     
     onChange(newItems)
   }
@@ -124,6 +115,7 @@ export function OrderItemsForm({ items, onChange, orderType }: OrderItemsFormPro
                     value={item.product_id}
                     onChange={(product) => handleProductSelect(index, product)}
                     orderType={orderType}
+                    selectedSupplier={selectedSupplier}
                   />
                 </div>
                 <Button
@@ -154,24 +146,14 @@ export function OrderItemsForm({ items, onChange, orderType }: OrderItemsFormPro
                     onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
                   />
                 </div>
-                {isSale && (
-                  <div>
-                    <label className="text-xs text-muted-foreground">單價</label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={item.unit_price}
-                      onChange={(e) => updateItem(index, 'unit_price', parseInt(e.target.value) || 0)}
-                    />
-                  </div>
-                )}
+                {/* 銷貨顯示售價，進貨顯示成本 */}
                 <div>
-                  <label className="text-xs text-muted-foreground">{isPurchase ? '單件成本' : '成本'}</label>
+                  <label className="text-xs text-muted-foreground">{isSale ? '售價' : '成本'}</label>
                   <Input
                     type="number"
                     min={0}
-                    value={item.cost}
-                    onChange={(e) => updateItem(index, 'cost', parseInt(e.target.value) || 0)}
+                    value={item.unit_price}
+                    onChange={(e) => updateItem(index, 'unit_price', parseInt(e.target.value) || 0)}
                   />
                 </div>
                 <div>

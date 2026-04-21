@@ -93,8 +93,35 @@ export async function updateProduct(product: ProductUpdate) {
   }
 }
 
+// 檢查商品是否已被使用（訂單或 order_items 中有引用）
+export async function checkProductUsage(productId: string): Promise<boolean> {
+  const supabase = await createClient()
+  
+  // 檢查 orders 表
+  const { count: orderCount } = await supabase
+    .from('orders')
+    .select('*', { count: 'exact', head: true })
+    .eq('product_id', productId)
+  
+  if (orderCount && orderCount > 0) return true
+  
+  // 檢查 order_items 表
+  const { count: itemCount } = await supabase
+    .from('order_items')
+    .select('*', { count: 'exact', head: true })
+    .eq('product_id', productId)
+  
+  return (itemCount ?? 0) > 0
+}
+
 export async function deleteProduct(id: string) {
   const supabase = await createClient()
+  
+  // 檢查是否已被使用
+  const isUsed = await checkProductUsage(id)
+  if (isUsed) {
+    throw new Error('此商品已有訂單紀錄，無法刪除')
+  }
 
   // Soft delete - set is_active to false
   const { error } = await supabase

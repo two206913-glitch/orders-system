@@ -256,32 +256,37 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
               </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* 根據交易類型顯示客戶或供應商（完全切換，不可同時顯示） */}
+            {isSaleType ? (
               <Field>
                 <FieldLabel>
                   客戶名稱
-                  {isSaleType && <span className="text-destructive ml-1">*</span>}
+                  <span className="text-destructive ml-1">*</span>
                 </FieldLabel>
                 <Input
                   placeholder="輸入客戶名稱"
                   value={formData.customer_name || ''}
                   onChange={(e) => updateField('customer_name', e.target.value || null)}
-                  className={isSaleType ? 'border-primary/50' : ''}
+                  className="border-primary/50"
                 />
               </Field>
+            ) : (
               <Field>
                 <FieldLabel>
                   供應商
-                  {isPurchaseType && <span className="text-destructive ml-1">*</span>}
+                  <span className="text-destructive ml-1">*</span>
                 </FieldLabel>
                 <Input
                   placeholder="輸入供應商名稱"
                   value={formData.supplier || ''}
                   onChange={(e) => updateField('supplier', e.target.value || null)}
-                  className={isPurchaseType ? 'border-primary/50' : ''}
+                  className="border-primary/50"
                 />
+                {!formData.supplier && (
+                  <p className="text-xs text-warning mt-1">請先選擇供應商</p>
+                )}
               </Field>
-            </div>
+            )}
 
             {/* 多商品切換 */}
             <div className="flex items-center justify-between py-2 border-b">
@@ -312,6 +317,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                 items={orderItems}
                 onChange={setOrderItems}
                 orderType={formData.type || 'sale'}
+                selectedSupplier={formData.supplier}
               />
             ) : (
               /* 單商品模式 - 原有 UI */
@@ -322,9 +328,10 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                     value={selectedProductId}
                     onChange={handleProductSelect}
                     orderType={formData.type || 'sale'}
+                    selectedSupplier={formData.supplier}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    選擇商品後自動帶入名稱、規格與價格
+                    選擇商品後自動帶入名稱、規格與{isSaleType ? '售價' : '成本'}
                   </p>
                 </Field>
 
@@ -358,13 +365,16 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                     />
                   </Field>
                   <Field>
-                    <FieldLabel>單價 (NT$)</FieldLabel>
+                    <FieldLabel>{isSaleType ? '售價 (NT$)' : '成本 (NT$)'}</FieldLabel>
                     <Input
                       type="number"
                       placeholder="0"
                       value={formData.unit_price ?? ''}
                       onChange={(e) => updateField('unit_price', e.target.value ? parseInt(e.target.value) : null)}
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {isSaleType ? '每件商品的售價' : '每件商品的進貨成本'}
+                    </p>
                   </Field>
                 </div>
               </>
