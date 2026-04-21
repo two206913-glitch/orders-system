@@ -89,12 +89,12 @@ export async function getCustomerInvoice(
     .lte('date', dateTo)
     .order('date', { ascending: true })
   
-  // 取得這些訂單的 order_items（用於多商品訂單）
+  // 取得這些訂單的 order_items（包含 cost 欄位用於利潤計算）
   const orderIds = orders?.map(o => o.id) || []
   const { data: orderItems } = orderIds.length > 0 
     ? await supabase
         .from('order_items')
-        .select('order_id, product_name, product_variant, quantity, unit_price, subtotal')
+        .select('order_id, product_name, product_variant, quantity, unit_price, cost, subtotal')
         .in('order_id', orderIds)
     : { data: [] }
   
@@ -204,12 +204,12 @@ export async function getSupplierInvoice(
     .lte('date', dateTo)
     .order('date', { ascending: true })
   
-  // 取得這些訂單的 order_items
+  // 取得這些訂單的 order_items（包含 cost 欄位）
   const orderIds = orders?.map(o => o.id) || []
   const { data: orderItems } = orderIds.length > 0 
     ? await supabase
         .from('order_items')
-        .select('order_id, product_name, product_variant, quantity, unit_price, subtotal')
+        .select('order_id, product_name, product_variant, quantity, unit_price, cost, subtotal')
         .in('order_id', orderIds)
     : { data: [] }
   
@@ -235,23 +235,43 @@ export async function getSupplierInvoice(
         .in('order_id', allOrderIds)
     : { data: [] }
   
-  const items: InvoiceItem[] = (orders || []).map(order => {
-    const qty = order.quantity || 0
-    const cost = order.cost || 0
-    const unitCost = qty > 0 ? Math.round(cost / qty) : 0
+  // 建立 items：優先從 order_items 取得，否則用 orders 的舊欄位
+  const items: InvoiceItem[] = (orders || []).flatMap(order => {
+    const orderItemsForThis = orderItems?.filter(item => item.order_id === order.id) || []
     const shippingFee = order.shipping_fee || 0
     
-    return {
-      id: order.id,
-      date: order.date || '',
-      type: order.type || 'purchase',
-      product_name: order.product_name || '',
-      spec: order.spec,
-      quantity: order.type === 'purchase_return' ? -qty : qty,
-      unit_price: unitCost,
-      shipping_fee: order.type === 'purchase_return' ? -shippingFee : shippingFee,
-      amount: order.type === 'purchase_return' ? -cost : cost,
-      note: order.note,
+    if (orderItemsForThis.length > 0) {
+      // 有 order_items：每個 item 獨立顯示，成本來自 order_items.cost
+      return orderItemsForThis.map((item, idx) => ({
+        id: `${order.id}-${idx}`,
+        date: order.date || '',
+        type: order.type || 'purchase',
+        product_name: item.product_name || '',
+        spec: item.product_variant,
+        quantity: order.type === 'purchase_return' ? -item.quantity : item.quantity,
+        unit_price: item.cost || item.unit_price || 0,  // 使用 order_items.cost
+        shipping_fee: idx === 0 ? (order.type === 'purchase_return' ? -shippingFee : shippingFee) : 0,
+        amount: order.type === 'purchase_return' ? -(item.cost * item.quantity) : (item.cost * item.quantity),
+        note: idx === 0 ? order.note : null,
+      }))
+    } else {
+      // 無 order_items：使用舊的 orders 欄位
+      const qty = order.quantity || 0
+      const cost = order.cost || 0
+      const unitCost = qty > 0 ? Math.round(cost / qty) : 0
+      
+      return [{
+        id: order.id,
+        date: order.date || '',
+        type: order.type || 'purchase',
+        product_name: order.product_name || '',
+        spec: order.spec,
+        quantity: order.type === 'purchase_return' ? -qty : qty,
+        unit_price: unitCost,
+        shipping_fee: order.type === 'purchase_return' ? -shippingFee : shippingFee,
+        amount: order.type === 'purchase_return' ? -cost : cost,
+        note: order.note,
+      }]
     }
   })
   
