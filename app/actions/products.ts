@@ -117,21 +117,21 @@ export async function checkProductUsage(productId: string): Promise<boolean> {
 export async function deleteProduct(id: string) {
   const supabase = await createClient()
   
-  // 檢查是否已被使用
+  // 檢查是否已被使用（order_items 中有該 product_id）
   const isUsed = await checkProductUsage(id)
   if (isUsed) {
-    throw new Error('此商品已有訂單紀錄，無法刪除')
+    throw new Error('此商品已有訂單使用，請使用停用功能')
   }
 
-  // Soft delete - set is_active to false
+  // 真正刪除（DELETE）- 未使用的商品才能刪除
   const { error } = await supabase
     .from('products')
-    .update({ is_active: false })
+    .delete()
     .eq('id', id)
 
   if (error) {
     console.error('Error deleting product:', error)
-    throw new Error('Failed to delete product')
+    throw new Error('刪除商品失敗')
   }
 }
 

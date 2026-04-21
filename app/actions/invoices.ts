@@ -241,19 +241,27 @@ export async function getSupplierInvoice(
     const shippingFee = order.shipping_fee || 0
     
     if (orderItemsForThis.length > 0) {
-      // 有 order_items：每個 item 獨立顯示，成本來自 order_items.cost
-      return orderItemsForThis.map((item, idx) => ({
-        id: `${order.id}-${idx}`,
-        date: order.date || '',
-        type: order.type || 'purchase',
-        product_name: item.product_name || '',
-        spec: item.product_variant,
-        quantity: order.type === 'purchase_return' ? -item.quantity : item.quantity,
-        unit_price: item.cost || item.unit_price || 0,  // 使用 order_items.cost
-        shipping_fee: idx === 0 ? (order.type === 'purchase_return' ? -shippingFee : shippingFee) : 0,
-        amount: order.type === 'purchase_return' ? -(item.cost * item.quantity) : (item.cost * item.quantity),
-        note: idx === 0 ? order.note : null,
-      }))
+      // 有 order_items：每個 item 獨立顯示
+      // 單件成本 = order_items.cost（必須使用此欄位，不可用其他值）
+      // 金額 = order_items.cost × order_items.quantity
+      return orderItemsForThis.map((item, idx) => {
+        const unitCost = item.cost ?? 0  // 單件成本只從 order_items.cost 取得
+        const qty = item.quantity ?? 0
+        const amount = unitCost * qty    // 金額 = 成本 × 數量
+        
+        return {
+          id: `${order.id}-${idx}`,
+          date: order.date || '',
+          type: order.type || 'purchase',
+          product_name: item.product_name || '',
+          spec: item.product_variant,
+          quantity: order.type === 'purchase_return' ? -qty : qty,
+          unit_price: unitCost,  // 單件成本
+          shipping_fee: idx === 0 ? (order.type === 'purchase_return' ? -shippingFee : shippingFee) : 0,
+          amount: order.type === 'purchase_return' ? -amount : amount,
+          note: idx === 0 ? order.note : null,
+        }
+      })
     } else {
       // 無 order_items：使用舊的 orders 欄位
       const qty = order.quantity || 0

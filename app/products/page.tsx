@@ -106,12 +106,12 @@ export default function ProductsPage() {
   }
 
   const handleDelete = async (product: Product) => {
-    if (!confirm(`確定要刪除商品「${product.name}${product.variant ? ` - ${product.variant}` : ''}」嗎？\n\n注意：若商品已有訂單紀錄，將無法刪除。`)) {
+    if (!confirm(`確定要永久刪除商品「${product.name}${product.variant ? ` - ${product.variant}` : ''}」嗎？\n\n此操作無法復原。\n若商品已有訂單使用，請改用「停用」功能。`)) {
       return
     }
     try {
       await deleteProduct(product.id)
-      toast.success('商品已刪除')
+      toast.success('商品已永久刪除')
       loadData()
     } catch (error) {
       console.error('Error deleting product:', error)
