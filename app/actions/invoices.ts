@@ -89,18 +89,36 @@ export async function getCustomerInvoice(
     .lte('date', dateTo)
     .order('date', { ascending: true })
   
+  // 取得這些訂單的 order_items（用於多商品訂單）
+  const orderIds = orders?.map(o => o.id) || []
+  const { data: orderItems } = orderIds.length > 0 
+    ? await supabase
+        .from('order_items')
+        .select('order_id, product_name, product_variant, quantity, unit_price, subtotal')
+        .in('order_id', orderIds)
+    : { data: [] }
+  
   // 取得該客戶的所有收款紀錄（從 receipts 表，用 customer_name 欄位）
   const { data: receipts } = await supabase
     .from('receipts')
     .select('amount')
     .eq('customer_name', customerName)
   
-  // 取得該客戶的所有訂單總額（用於計算總應收）
+  // 取得該客戶的所有訂單（用於計算總應收，包含 order_items）
   const { data: allOrders } = await supabase
     .from('orders')
-    .select('type, total_price')
+    .select('id, type, total_price, shipping_fee')
     .eq('customer_name', customerName)
     .in('type', ['sale', 'sale_return'])
+  
+  // 取得所有訂單的 order_items
+  const allOrderIds = allOrders?.map(o => o.id) || []
+  const { data: allOrderItems } = allOrderIds.length > 0
+    ? await supabase
+        .from('order_items')
+        .select('order_id, subtotal')
+        .in('order_id', allOrderIds)
+    : { data: [] }
   
   const items: InvoiceItem[] = (orders || []).map(order => ({
     id: order.id,
@@ -133,10 +151,21 @@ export async function getCustomerInvoice(
   // 計算總已收金額
   const received_amount = receipts?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0
   
-  // 計算總應收（所有訂單）
+  // 計算總應收（從 order_items 加總，若無則用 total_price）
   const total_receivable = allOrders?.reduce((sum, o) => {
-    const amount = o.total_price || 0
-    return sum + (o.type === 'sale_return' ? -amount : amount)
+    // 檢查是否有 order_items
+    const itemsForOrder = allOrderItems?.filter(item => item.order_id === o.id) || []
+    let orderAmount: number
+    
+    if (itemsForOrder.length > 0) {
+      // 有 order_items，用 subtotal 加總 + shipping_fee
+      orderAmount = itemsForOrder.reduce((s, item) => s + (item.subtotal || 0), 0) + (o.shipping_fee || 0)
+    } else {
+      // 無 order_items，用 total_price
+      orderAmount = o.total_price || 0
+    }
+    
+    return sum + (o.type === 'sale_return' ? -orderAmount : orderAmount)
   }, 0) || 0
   
   // 未收金額 = 總應收 - 已收
@@ -175,18 +204,36 @@ export async function getSupplierInvoice(
     .lte('date', dateTo)
     .order('date', { ascending: true })
   
+  // 取得這些訂單的 order_items
+  const orderIds = orders?.map(o => o.id) || []
+  const { data: orderItems } = orderIds.length > 0 
+    ? await supabase
+        .from('order_items')
+        .select('order_id, product_name, product_variant, quantity, unit_price, subtotal')
+        .in('order_id', orderIds)
+    : { data: [] }
+  
   // 取得該供應商的所有付款紀錄（從 payments 表，用 supplier_name 欄位）
   const { data: payments } = await supabase
     .from('payments')
     .select('amount')
     .eq('supplier_name', supplierName)
   
-  // 取得該供應商的所有訂單總額（用於計算總應付）
+  // 取得該供應商的所有訂單（用於計算總應付）
   const { data: allOrders } = await supabase
     .from('orders')
-    .select('type, cost')
+    .select('id, type, cost, shipping_fee')
     .eq('supplier', supplierName)
     .in('type', ['purchase', 'purchase_return'])
+  
+  // 取得所有訂單的 order_items
+  const allOrderIds = allOrders?.map(o => o.id) || []
+  const { data: allOrderItems } = allOrderIds.length > 0
+    ? await supabase
+        .from('order_items')
+        .select('order_id, subtotal')
+        .in('order_id', allOrderIds)
+    : { data: [] }
   
   const items: InvoiceItem[] = (orders || []).map(order => {
     const qty = order.quantity || 0
@@ -226,10 +273,21 @@ export async function getSupplierInvoice(
   // 計算總已付金額
   const paid_amount = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0
   
-  // 計算總應付（所有訂單）
+  // 計算總應付（從 order_items 加總，若無則用 cost）
   const total_payable = allOrders?.reduce((sum, o) => {
-    const amount = o.cost || 0
-    return sum + (o.type === 'purchase_return' ? -amount : amount)
+    // 檢查是否有 order_items
+    const itemsForOrder = allOrderItems?.filter(item => item.order_id === o.id) || []
+    let orderAmount: number
+    
+    if (itemsForOrder.length > 0) {
+      // 有 order_items，用 subtotal 加總 + shipping_fee
+      orderAmount = itemsForOrder.reduce((s, item) => s + (item.subtotal || 0), 0) + (o.shipping_fee || 0)
+    } else {
+      // 無 order_items，用 cost
+      orderAmount = o.cost || 0
+    }
+    
+    return sum + (o.type === 'purchase_return' ? -orderAmount : orderAmount)
   }, 0) || 0
   
   // 未付金額 = 總應付 - 已付

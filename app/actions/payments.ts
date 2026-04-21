@@ -48,16 +48,10 @@ export async function getPayments(filters?: {
 }
 
 export async function createPayment(payment: PaymentInsert) {
-  console.log('[v0] ========== createPayment 開始 ==========')
-  console.log('[v0] payment.type =', payment.type)
-  console.log('[v0] payment.party_name =', payment.party_name)
-  console.log('[v0] payment.amount =', payment.amount)
-  
   const supabase = await createClient()
   
   // 根據 type 決定寫入哪個資料表
   const tableName = payment.type === 'receipt' ? 'receipts' : 'payments'
-  console.log('[v0] 寫入資料表 =', tableName)
   
   // 準備寫入的資料（使用 customer_name / supplier_name）
   // payments 表有 type 和 party_name 欄位，receipts 表沒有
@@ -80,8 +74,6 @@ export async function createPayment(payment: PaymentInsert) {
         note: payment.note,
       }
 
-  console.log('[v0] insertData =', JSON.stringify(insertData))
-
   const { data, error } = await supabase
     .from(tableName)
     .insert(insertData)
@@ -89,15 +81,9 @@ export async function createPayment(payment: PaymentInsert) {
     .single()
 
   if (error) {
-    console.error('[v0] ========== INSERT 失敗 ==========')
-    console.error('[v0] error.message =', error.message)
-    console.error('[v0] error.code =', error.code)
-    console.error('[v0] error.details =', error.details)
+    console.error('Error creating payment:', error)
     throw new Error(`Failed to create ${payment.type}: ${error.message}`)
   }
-
-  console.log('[v0] ========== INSERT 成功 ==========')
-  console.log('[v0] 回傳 data =', JSON.stringify(data))
 
   // 收款/付款後更新對應訂單的付款狀態
   await updateOrderPaymentStatus(supabase, payment.party_name, payment.type)
