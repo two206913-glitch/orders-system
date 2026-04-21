@@ -106,15 +106,17 @@ export default function ProductsPage() {
   }
 
   const handleDelete = async (product: Product) => {
-    if (!confirm(`確定要停用商品「${product.name}${product.variant ? ` - ${product.variant}` : ''}」嗎？`)) {
+    if (!confirm(`確定要刪除商品「${product.name}${product.variant ? ` - ${product.variant}` : ''}」嗎？\n\n注意：若商品已有訂單紀錄，將無法刪除。`)) {
       return
     }
     try {
       await deleteProduct(product.id)
+      toast.success('商品已刪除')
       loadData()
     } catch (error) {
       console.error('Error deleting product:', error)
-      alert('停用商品失敗')
+      const errorMessage = error instanceof Error ? error.message : '刪除商品失敗'
+      toast.error(errorMessage)
     }
   }
 
@@ -316,6 +318,13 @@ export default function ProductsPage() {
                         <DropdownMenuItem onClick={() => handleEdit(product)}>
                           <Pencil className="h-4 w-4 mr-2" />
                           編輯
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleDelete(product)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          刪除
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

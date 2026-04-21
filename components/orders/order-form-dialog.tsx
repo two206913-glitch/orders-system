@@ -69,7 +69,10 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
   const [isMultiItem, setIsMultiItem] = useState(false)
   const [orderItems, setOrderItems] = useState<OrderItem[]>([])
 
+  // 表單重置：當 open 狀態改變或 mode 改變時執行
   useEffect(() => {
+    if (!open) return // modal 關閉時不處理
+    
     if (order && mode === 'edit') {
       setFormData({
         date: order.date,
@@ -91,24 +94,41 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
         note: order.note,
         type: order.type || 'sale',
       })
+      // 編輯模式不重置 items（需要另外載入）
     } else if (mode === 'create') {
-      setFormData(emptyForm)
+      // 新增模式：完全重置所有 state
+      setFormData({ ...emptyForm })
+      setSelectedProductId(null)
       setIsMultiItem(false)
       setOrderItems([])
     }
-  }, [order, mode])
+  }, [open, order, mode])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     startTransition(async () => {
-      // 多商品模式時計算總金額
+      // 多商品模式時計算總金額和利潤
       let submitData = { ...formData }
       if (isMultiItem && orderItems.length > 0) {
         const totalItemsAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0)
         const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0)
+        // 總成本 = 所有 order_items 的 (cost × quantity) 加總
+        const totalCost = orderItems.reduce((sum, item) => sum + (item.cost * item.quantity), 0)
         const shippingFee = formData.shipping_fee ?? 0
+        
         submitData.total_price = totalItemsAmount + shippingFee
         submitData.quantity = totalQuantity
+        submitData.cost = totalCost  // 保存總成本
+        
+        // 利潤 = 總金額 - (總成本 + 運費)
+        const orderType = formData.type || 'sale'
+        const isSale = orderType === 'sale' || orderType === 'sale_return'
+        if (isSale) {
+          submitData.profit = totalItemsAmount - totalCost - shippingFee
+        } else {
+          submitData.profit = null
+        }
+        
         // 合併商品名稱顯示
         submitData.product_name = orderItems.map(i => i.product_name).join(', ')
       }
@@ -127,7 +147,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  // 處理商品選擇
+  // 處理商品選擇（必須使用 product_id 對應，確保所有欄位來自同一商品）
   const handleProductSelect = (product: {
     id: string
     name: string
@@ -143,25 +163,29 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
       const type = formData.type || 'sale'
       const isSale = type === 'sale' || type === 'sale_return'
       
+      // 所有欄位必須來自同一個 product（依 product.id 取得）
       setFormData((prev) => ({
         ...prev,
         product_name: product.name,
         spec: product.variant,
         supplier: product.supplier || prev.supplier,
         unit_price: isSale ? product.price : product.cost,
-        // 進貨時自動帶入成本
-        cost: !isSale ? product.cost : prev.cost,
+        // 銷貨和進貨都必須帶入成本（用於利潤計算）
+        cost: product.cost,
       }))
     } else {
       setSelectedProductId(null)
     }
   }
 
-  // Auto-calculate total price and profit
+  // Auto-calculate total price and profit（單商品模式）
   useEffect(() => {
+    // 多商品模式不使用此計算
+    if (isMultiItem) return
+    
     const quantity = formData.quantity ?? 0
     const unitPrice = formData.unit_price ?? 0
-    const unitCost = formData.cost ?? 0 // 進貨時為單件成本
+    const unitCost = formData.cost ?? 0
     const shippingFee = formData.shipping_fee ?? 0
     const type = formData.type || 'sale'
     const isPurchase = type === 'purchase' || type === 'purchase_return'
@@ -172,18 +196,19 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
     if (isPurchase) {
       // 進貨單：總成本 = 數量 × 單件成本 + 運費
       total = (quantity * unitCost) + shippingFee
-      // 進貨不計算利潤
       profit = null
     } else {
       // 銷貨單：總金額 = 數量 × 單價 + 運費
       const subtotal = quantity * unitPrice
       total = subtotal + shippingFee
       
-      // 銷貨利潤計算
+      // 利潤 = 總金額 - (總成本 + 運費)
+      // 總成本 = 數量 × 單件成本
+      const totalCost = quantity * unitCost
       if (type === 'sale') {
-        profit = unitCost > 0 ? total - (quantity * unitCost) : null
+        profit = unitCost > 0 ? subtotal - totalCost : null
       } else if (type === 'sale_return') {
-        profit = unitCost > 0 ? -((total) - (quantity * unitCost)) : null
+        profit = unitCost > 0 ? -(subtotal - totalCost) : null
       }
     }
     
@@ -192,7 +217,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
       total_price: total || null,
       profit,
     }))
-  }, [formData.quantity, formData.unit_price, formData.cost, formData.shipping_fee, formData.type])
+  }, [formData.quantity, formData.unit_price, formData.cost, formData.shipping_fee, formData.type, isMultiItem])
   
   // 根據交易類型決定顯示的欄位提示
   const orderType = formData.type || 'sale'
