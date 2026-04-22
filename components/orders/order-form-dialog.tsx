@@ -116,18 +116,25 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
         const totalCost = orderItems.reduce((sum, item) => sum + (item.cost * item.quantity), 0)
         const shippingFee = formData.shipping_fee ?? 0
         
+        console.log('[v0] 多商品提交 - totalItemsAmount:', totalItemsAmount, 'totalQuantity:', totalQuantity, 'totalCost:', totalCost, 'shippingFee:', shippingFee)
+        
+        // 總金額 = 商品金額加總 + 運費（不再乘以數量）
         submitData.total_price = totalItemsAmount + shippingFee
         submitData.quantity = totalQuantity
         submitData.cost = totalCost  // 保存總成本
         
-        // 利潤 = 總金額 - (總成本 + 運費)
+        console.log('[v0] 多商品提交 - total_price:', submitData.total_price)
+        
+        // 利潤 = 商品金額 - 總成本（運費不參與利潤計算）
         const orderType = formData.type || 'sale'
         const isSale = orderType === 'sale' || orderType === 'sale_return'
         if (isSale) {
-          submitData.profit = totalItemsAmount - totalCost - shippingFee
+          submitData.profit = totalItemsAmount - totalCost
         } else {
           submitData.profit = null
         }
+        
+        console.log('[v0] 多商品提交 - profit:', submitData.profit)
         
         // 合併商品名稱顯示
         submitData.product_name = orderItems.map(i => i.product_name).join(', ')
@@ -190,26 +197,30 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
     const type = formData.type || 'sale'
     const isPurchase = type === 'purchase' || type === 'purchase_return'
     
+    console.log('[v0] 單商品計算 - quantity:', quantity, 'unitPrice:', unitPrice, 'unitCost:', unitCost, 'shippingFee:', shippingFee)
+    
     let total: number
     let profit: number | null = null
     
     if (isPurchase) {
       // 進貨單：總成本 = 數量 × 單件成本 + 運費
       total = (quantity * unitCost) + shippingFee
+      console.log('[v0] 進貨計算 - total:', total)
       profit = null
     } else {
-      // 銷貨單：總金額 = 數量 × 單價 + 運費
+      // 銷貨單：總金額 = (數量 × 單價) + 運費
       const subtotal = quantity * unitPrice
       total = subtotal + shippingFee
+      console.log('[v0] 銷貨計算 - subtotal:', subtotal, 'total:', total)
       
-      // 利潤 = 總金額 - (總成本 + 運費)
-      // 總成本 = 數量 × 單件成本
+      // 利潤 = 商品小計 - 商品總成本（不含運費）
       const totalCost = quantity * unitCost
       if (type === 'sale') {
         profit = unitCost > 0 ? subtotal - totalCost : null
       } else if (type === 'sale_return') {
         profit = unitCost > 0 ? -(subtotal - totalCost) : null
       }
+      console.log('[v0] 利潤計算 - totalCost:', totalCost, 'profit:', profit)
     }
     
     setFormData((prev) => ({
