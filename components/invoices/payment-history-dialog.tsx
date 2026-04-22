@@ -70,14 +70,15 @@ export function PaymentHistoryDialog({
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('確定要刪除此筆紀錄嗎？')) return
+    if (!confirm('確定要刪除此筆紀錄嗎？刪除後應收/應付金額將自動回復。')) return
     
     try {
-      await deletePayment(id)
+      await deletePayment(id, type)
       loadPayments()
       onRefresh?.()
     } catch (error) {
       console.error('Failed to delete payment:', error)
+      alert('刪除失敗，請稍後再試')
     }
   }
 
