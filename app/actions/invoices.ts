@@ -120,18 +120,47 @@ export async function getCustomerInvoice(
         .in('order_id', allOrderIds)
     : { data: [] }
   
-  const items: InvoiceItem[] = (orders || []).map(order => ({
-    id: order.id,
-    date: order.date || '',
-    type: order.type || 'sale',
-    product_name: order.product_name || '',
-    spec: order.spec,
-    quantity: order.type === 'sale_return' ? -(order.quantity || 0) : (order.quantity || 0),
-    unit_price: order.unit_price || 0,
-    shipping_fee: order.type === 'sale_return' ? -(order.shipping_fee || 0) : (order.shipping_fee || 0),
-    amount: order.type === 'sale_return' ? -(order.total_price || 0) : (order.total_price || 0),
-    note: order.note,
-  }))
+  // 建立 items：優先從 order_items 取得，否則用 orders 的舊欄位
+  const items: InvoiceItem[] = (orders || []).flatMap(order => {
+    const orderItemsForThis = orderItems?.filter(item => item.order_id === order.id) || []
+    const shippingFee = order.shipping_fee || 0
+    
+    if (orderItemsForThis.length > 0) {
+      // 有 order_items：每個 item 獨立顯示
+      return orderItemsForThis.map((item, idx) => {
+        const unitPrice = item.unit_price ?? 0
+        const qty = item.quantity ?? 0
+        const amount = item.subtotal ?? (unitPrice * qty)
+        
+        return {
+          id: `${order.id}-${idx}`,
+          date: order.date || '',
+          type: order.type || 'sale',
+          product_name: item.product_name || '',
+          spec: item.product_variant,
+          quantity: order.type === 'sale_return' ? -qty : qty,
+          unit_price: unitPrice,
+          shipping_fee: idx === 0 ? (order.type === 'sale_return' ? -shippingFee : shippingFee) : 0,
+          amount: order.type === 'sale_return' ? -amount : amount,
+          note: idx === 0 ? order.note : null,
+        }
+      })
+    } else {
+      // 無 order_items：使用舊的 orders 欄位
+      return [{
+        id: order.id,
+        date: order.date || '',
+        type: order.type || 'sale',
+        product_name: order.product_name || '',
+        spec: order.spec,
+        quantity: order.type === 'sale_return' ? -(order.quantity || 0) : (order.quantity || 0),
+        unit_price: order.unit_price || 0,
+        shipping_fee: order.type === 'sale_return' ? -(order.shipping_fee || 0) : (order.shipping_fee || 0),
+        amount: order.type === 'sale_return' ? -(order.total_price || 0) : (order.total_price || 0),
+        note: order.note,
+      }]
+    }
+  })
   
   // 計算該期間的銷貨和銷退
   const sale_total = items
