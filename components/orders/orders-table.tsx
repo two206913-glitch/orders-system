@@ -167,36 +167,39 @@ export function OrdersTable({ orders, total, currentPage, pageSize }: OrdersTabl
                   <TableCell className="text-foreground font-medium">{formatDate(order.date)}</TableCell>
                   <TableCell className="text-foreground font-medium">{counterparty || '-'}</TableCell>
                   <TableCell className="text-foreground">
-                    {/* 檢查是否為多商品訂單（product_name 含有逗號） */}
-                    {order.product_name?.includes(',') ? (
-                      <button
-                        onClick={() => toggleExpand(order.id)}
-                        className="flex items-center gap-1 text-left hover:text-primary transition-colors"
-                        disabled={loadingExpand === order.id}
-                      >
-                        {loadingExpand === order.id ? (
-                          <span className="text-muted-foreground">載入中...</span>
-                        ) : (
-                          <>
-                            <span className="truncate max-w-[150px]" title={order.product_name || ''}>
-                              {order.product_name?.split(',')[0]}...
-                            </span>
-                            <span className="text-xs text-muted-foreground ml-1">
-                              ({order.product_name?.split(',').length}項)
-                            </span>
-                            {expandedOrders[order.id] ? (
-                              <ChevronUp className="h-3 w-3 ml-1" />
-                            ) : (
-                              <ChevronDown className="h-3 w-3 ml-1" />
-                            )}
-                          </>
-                        )}
-                      </button>
-                    ) : (
-                      order.product_name || '-'
-                    )}
+                    {/* 一律從 order_items 載入商品明細 */}
+                    <button
+                      onClick={() => toggleExpand(order.id)}
+                      className="flex items-center gap-1 text-left hover:text-primary transition-colors"
+                      disabled={loadingExpand === order.id}
+                    >
+                      {loadingExpand === order.id ? (
+                        <span className="text-muted-foreground">載入中...</span>
+                      ) : expandedOrders[order.id] ? (
+                        <>
+                          <span className="truncate max-w-[150px]">
+                            {expandedOrders[order.id][0]?.product_name || '-'}
+                            {expandedOrders[order.id].length > 1 && '...'}
+                          </span>
+                          <span className="text-xs text-muted-foreground ml-1">
+                            ({expandedOrders[order.id].length}項)
+                          </span>
+                          <ChevronUp className="h-3 w-3 ml-1" />
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-muted-foreground">查看商品</span>
+                          <ChevronDown className="h-3 w-3 ml-1" />
+                        </>
+                      )}
+                    </button>
                   </TableCell>
-                  <TableCell className="text-foreground text-right tabular-nums">{order.quantity?.toLocaleString('zh-TW') ?? '-'}</TableCell>
+                  <TableCell className="text-foreground text-right tabular-nums">
+                    {expandedOrders[order.id] 
+                      ? expandedOrders[order.id].reduce((sum, item) => sum + item.quantity, 0).toLocaleString('zh-TW')
+                      : '-'
+                    }
+                  </TableCell>
                   <TableCell className="text-foreground text-right font-semibold tabular-nums">{formatCurrency(order.total_price)}</TableCell>
                   <TableCell>
                     <StatusSelect

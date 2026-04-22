@@ -15,36 +15,43 @@ export interface InventoryItem {
 export async function getInventory(): Promise<InventoryItem[]> {
   const supabase = await createClient()
   
-  // Get all orders grouped by product
+  // 取得所有訂單（只需要 id 和 type）
   const { data: orders } = await supabase
     .from('orders')
-    .select('product_name, spec, quantity, cost, type, date')
-    .not('product_name', 'is', null)
-    .order('date', { ascending: true }) // 按日期排序以正確計算加權平均成本
+    .select('id, type, date, shipping_fee')
+    .order('date', { ascending: true })
   
-  if (!orders) return []
+  // 取得所有 order_items（商品明細）
+  const { data: orderItems } = await supabase
+    .from('order_items')
+    .select('order_id, product_name, product_variant, quantity, cost, unit_price')
   
-  // Group by product_name + spec
+  if (!orders || !orderItems) return []
+  
+  // 建立 order_id -> order 的對應
+  const ordersMap = new Map(orders.map(o => [o.id, o]))
+  
+  // Group by product_name + variant
   const inventory = new Map<string, {
     product_name: string
     spec: string | null
-    // 進貨相關（用於計算平均成本）
-    purchase_qty: number      // 累計進貨數量
-    purchase_cost: number     // 累計進貨成本
-    // 進退相關
+    purchase_qty: number
+    purchase_cost: number
     purchase_return_qty: number
     purchase_return_cost: number
-    // 銷貨相關
     sale_qty: number
-    // 銷退相關
     sale_return_qty: number
   }>()
   
-  orders.forEach((order) => {
-    const key = `${order.product_name}||${order.spec || ''}`
-    const item = inventory.get(key) || {
-      product_name: order.product_name!,
-      spec: order.spec,
+  // 從 order_items 計算庫存
+  orderItems.forEach((item) => {
+    const order = ordersMap.get(item.order_id)
+    if (!order) return
+    
+    const key = `${item.product_name}||${item.product_variant || ''}`
+    const inv = inventory.get(key) || {
+      product_name: item.product_name,
+      spec: item.product_variant,
       purchase_qty: 0,
       purchase_cost: 0,
       purchase_return_qty: 0,
@@ -53,32 +60,29 @@ export async function getInventory(): Promise<InventoryItem[]> {
       sale_return_qty: 0,
     }
     
-    const qty = order.quantity || 0
-    const cost = order.cost || 0  // 使用 cost 欄位，不是 total_price
+    const qty = item.quantity || 0
+    // 成本優先用 order_items.cost，沒有則用 unit_price
+    const cost = (item.cost ?? item.unit_price ?? 0) * qty
     const type = order.type || 'sale'
     
     switch (type) {
       case 'purchase':
-        // 進貨：增加庫存，使用 cost 欄位計算平均成本
-        item.purchase_qty += qty
-        item.purchase_cost += cost
+        inv.purchase_qty += qty
+        inv.purchase_cost += cost
         break
       case 'purchase_return':
-        // 進退：減少庫存，用當時的成本沖銷
-        item.purchase_return_qty += qty
-        item.purchase_return_cost += cost
+        inv.purchase_return_qty += qty
+        inv.purchase_return_cost += cost
         break
       case 'sale':
-        // 銷貨：減少庫存，不影響平均成本
-        item.sale_qty += qty
+        inv.sale_qty += qty
         break
       case 'sale_return':
-        // 銷退：增加庫存，不影響平均成本
-        item.sale_return_qty += qty
+        inv.sale_return_qty += qty
         break
     }
     
-    inventory.set(key, item)
+    inventory.set(key, inv)
   })
   
   // Convert to InventoryItem with correct calculations
@@ -127,7 +131,7 @@ export async function getProductAvgCost(productName: string, spec?: string | nul
   return item?.avg_cost || 0
 }
 
-// 從訂單計算庫存（供庫存頁面使用）
+// 從 order_items 計算庫存（供庫存頁面使用）
 export async function getInventoryFromOrders(search?: string): Promise<{
   product_name: string
   spec: string | null
@@ -140,11 +144,15 @@ export async function getInventoryFromOrders(search?: string): Promise<{
 }[]> {
   const supabase = await createClient()
 
-  // 取得所有訂單
+  // 取得所有訂單（只需要 id, type, supplier）
   const { data: orders } = await supabase
     .from('orders')
-    .select('product_name, spec, type, quantity, cost, supplier')
-    .not('product_name', 'is', null)
+    .select('id, type, supplier')
+
+  // 取得所有 order_items
+  const { data: orderItems } = await supabase
+    .from('order_items')
+    .select('order_id, product_name, product_variant, quantity, cost, unit_price')
 
   // 取得商品資料（用於取得價格和安全庫存）
   const { data: products } = await supabase
@@ -152,7 +160,10 @@ export async function getInventoryFromOrders(search?: string): Promise<{
     .select('name, variant, cost, price, min_stock, unit, supplier')
     .eq('is_active', true)
 
-  if (!orders) return []
+  if (!orders || !orderItems) return []
+
+  // 建立 order_id -> order 的對應
+  const ordersMap = new Map(orders.map(o => [o.id, o]))
 
   // 按商品名稱和規格分組計算庫存
   const inventoryMap = new Map<string, {
@@ -164,20 +175,23 @@ export async function getInventoryFromOrders(search?: string): Promise<{
     supplier: string | null
   }>()
 
-  orders.forEach((order) => {
-    if (!order.product_name) return
-    const key = `${order.product_name}|${order.spec || ''}`
+  // 從 order_items 計算
+  orderItems.forEach((item) => {
+    const order = ordersMap.get(item.order_id)
+    if (!order || !item.product_name) return
+    
+    const key = `${item.product_name}|${item.product_variant || ''}`
     const current = inventoryMap.get(key) || {
-      product_name: order.product_name,
-      spec: order.spec,
+      product_name: item.product_name,
+      spec: item.product_variant,
       quantity: 0,
       totalCost: 0,
       orderCount: 0,
       supplier: order.supplier,
     }
 
-    const qty = order.quantity || 0
-    const cost = order.cost || 0
+    const qty = item.quantity || 0
+    const cost = (item.cost ?? item.unit_price ?? 0) * qty
 
     switch (order.type) {
       case 'purchase':

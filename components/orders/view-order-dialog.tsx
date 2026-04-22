@@ -98,7 +98,6 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
 
   if (!order) return null
 
-  const hasMultipleItems = orderItems.length > 0
   const orderType = order.type || 'sale'
   const isSaleType = orderType === 'sale' || orderType === 'sale_return'
   const isPurchaseType = orderType === 'purchase' || orderType === 'purchase_return'
@@ -156,14 +155,14 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
 
           <Separator />
 
-          {/* 產品資訊 - 多商品逐列顯示 */}
+          {/* 產品資訊 - 一律從 order_items 顯示 */}
           {loadingItems ? (
             <div className="text-center py-4 text-muted-foreground">載入商品明細...</div>
-          ) : hasMultipleItems ? (
+          ) : orderItems.length > 0 ? (
             <div className="space-y-2">
               <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 <Package className="h-3.5 w-3.5" />
-                商品明細
+                商品明細 ({orderItems.length} 項)
               </div>
               <div className="rounded-lg border overflow-hidden">
                 <Table>
@@ -182,7 +181,7 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
                         <TableCell className="font-medium">{item.product_name}</TableCell>
                         <TableCell className="text-muted-foreground">{item.product_variant || '-'}</TableCell>
                         <TableCell className="text-right tabular-nums">{item.quantity.toLocaleString('zh-TW')}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatCurrency(item.unit_price)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatCurrency(isSaleType ? item.unit_price : item.cost)}</TableCell>
                         <TableCell className="text-right tabular-nums font-medium">{formatCurrency(item.subtotal)}</TableCell>
                       </TableRow>
                     ))}
@@ -191,24 +190,15 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
               </div>
             </div>
           ) : (
-            /* 單商品顯示（舊訂單或只有一個商品） */
-            <div className="grid grid-cols-2 gap-4">
-              <DetailItem icon={Package} label="產品" value={order.product_name || '-'} />
-              <DetailItem label="規格" value={order.spec || '-'} />
-              <DetailItem label="數量" value={order.quantity?.toLocaleString('zh-TW') || '-'} />
-              <DetailItem label={isSaleType ? '售價' : '成本'} value={formatCurrency(order.unit_price)} />
+            /* 無 order_items（舊訂單）- 顯示提示 */
+            <div className="text-center py-4 text-muted-foreground">
+              此訂單無商品明細紀錄（舊資料格式）
             </div>
           )}
 
-          {/* 金額資訊 */}
+          {/* 金額資訊 - 從 order_items 計算 */}
           <div className="rounded-lg bg-muted/50 p-4 space-y-3">
-            <div className={`grid ${isSaleType ? 'grid-cols-4' : 'grid-cols-3'} gap-4 text-sm`}>
-              {!hasMultipleItems && (
-                <div>
-                  <span className="text-muted-foreground">{isPurchaseType ? '單件成本' : '成本'}</span>
-                  <p className="font-medium">{formatCurrency(order.cost)}</p>
-                </div>
-              )}
+            <div className={`grid ${isSaleType ? 'grid-cols-3' : 'grid-cols-2'} gap-4 text-sm`}>
               <div>
                 <span className="text-muted-foreground">運費</span>
                 <p className="font-medium">{formatCurrency(order.shipping_fee)}</p>
