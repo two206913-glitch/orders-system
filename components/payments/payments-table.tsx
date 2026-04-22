@@ -49,10 +49,11 @@ export function PaymentsTable({ payments, type }: PaymentsTableProps) {
     setIsDeleting(true)
 
     try {
-      await deletePayment(deletingPayment.id)
+      await deletePayment(deletingPayment.id, type)
       router.refresh()
     } catch (error) {
       console.error('Failed to delete payment:', error)
+      alert('刪除失敗，請稍後再試')
     } finally {
       setIsDeleting(false)
       setDeletingPayment(null)
