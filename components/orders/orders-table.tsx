@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Table,
@@ -19,7 +19,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from '@/components/ui/empty'
-import { MoreHorizontal, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, Package, Plus } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, Package, Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { getOrderItems } from '@/app/actions/orders'
+import type { OrderItem } from '@/lib/types/order'
 import type { Order } from '@/lib/types/order'
 import { formatCurrency, formatDate, getOrderTypeLabel } from '@/lib/locale'
 import { OrderFormDialog } from './order-form-dialog'
@@ -42,6 +44,27 @@ export function OrdersTable({ orders, total, currentPage, pageSize }: OrdersTabl
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
   const [deletingOrder, setDeletingOrder] = useState<Order | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [expandedOrders, setExpandedOrders] = useState<Record<string, OrderItem[]>>({})
+  const [loadingExpand, setLoadingExpand] = useState<string | null>(null)
+
+  // 展開/收合多商品訂單
+  const toggleExpand = async (orderId: string) => {
+    if (expandedOrders[orderId]) {
+      // 已展開，收合
+      const newExpanded = { ...expandedOrders }
+      delete newExpanded[orderId]
+      setExpandedOrders(newExpanded)
+    } else {
+      // 未展開，載入並展開
+      setLoadingExpand(orderId)
+      try {
+        const items = await getOrderItems(orderId)
+        setExpandedOrders(prev => ({ ...prev, [orderId]: items }))
+      } finally {
+        setLoadingExpand(null)
+      }
+    }
+  }
 
   const currentSort = searchParams.get('sortBy') || 'created_at'
   const currentOrder = searchParams.get('sortOrder') || 'desc'
@@ -129,7 +152,8 @@ export function OrdersTable({ orders, total, currentPage, pageSize }: OrdersTabl
                 const counterparty = isSale ? order.customer_name : order.supplier
                 
                 return (
-                <TableRow key={order.id} className="border-border hover:bg-muted/30 transition-colors group">
+                <React.Fragment key={order.id}>
+                <TableRow className="border-border hover:bg-muted/30 transition-colors group">
                   <TableCell>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                       type === 'sale' ? 'bg-success/10 text-success' :
@@ -142,7 +166,36 @@ export function OrdersTable({ orders, total, currentPage, pageSize }: OrdersTabl
                   </TableCell>
                   <TableCell className="text-foreground font-medium">{formatDate(order.date)}</TableCell>
                   <TableCell className="text-foreground font-medium">{counterparty || '-'}</TableCell>
-                  <TableCell className="text-foreground">{order.product_name || '-'}</TableCell>
+                  <TableCell className="text-foreground">
+                    {/* 檢查是否為多商品訂單（product_name 含有逗號） */}
+                    {order.product_name?.includes(',') ? (
+                      <button
+                        onClick={() => toggleExpand(order.id)}
+                        className="flex items-center gap-1 text-left hover:text-primary transition-colors"
+                        disabled={loadingExpand === order.id}
+                      >
+                        {loadingExpand === order.id ? (
+                          <span className="text-muted-foreground">載入中...</span>
+                        ) : (
+                          <>
+                            <span className="truncate max-w-[150px]" title={order.product_name || ''}>
+                              {order.product_name?.split(',')[0]}...
+                            </span>
+                            <span className="text-xs text-muted-foreground ml-1">
+                              ({order.product_name?.split(',').length}項)
+                            </span>
+                            {expandedOrders[order.id] ? (
+                              <ChevronUp className="h-3 w-3 ml-1" />
+                            ) : (
+                              <ChevronDown className="h-3 w-3 ml-1" />
+                            )}
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      order.product_name || '-'
+                    )}
+                  </TableCell>
                   <TableCell className="text-foreground text-right tabular-nums">{order.quantity?.toLocaleString('zh-TW') ?? '-'}</TableCell>
                   <TableCell className="text-foreground text-right font-semibold tabular-nums">{formatCurrency(order.total_price)}</TableCell>
                   <TableCell>
@@ -188,6 +241,28 @@ export function OrdersTable({ orders, total, currentPage, pageSize }: OrdersTabl
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
+                {/* 展開的多商品明細 */}
+                {expandedOrders[order.id] && expandedOrders[order.id].length > 0 && (
+                  <TableRow className="bg-muted/20">
+                    <TableCell colSpan={9} className="py-2 px-4">
+                      <div className="ml-4 border-l-2 border-primary/30 pl-4">
+                        <div className="text-xs font-medium text-muted-foreground mb-2">商品明細：</div>
+                        <div className="space-y-1">
+                          {expandedOrders[order.id].map((item, idx) => (
+                            <div key={item.id || idx} className="flex items-center gap-4 text-sm">
+                              <span className="font-medium min-w-[120px]">{item.product_name}</span>
+                              <span className="text-muted-foreground min-w-[80px]">{item.product_variant || '-'}</span>
+                              <span className="tabular-nums min-w-[60px] text-right">{item.quantity} 件</span>
+                              <span className="tabular-nums min-w-[80px] text-right">{formatCurrency(item.unit_price)}</span>
+                              <span className="tabular-nums min-w-[80px] text-right font-medium">{formatCurrency(item.subtotal)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </React.Fragment>
               )})
             )}
           </TableBody>
