@@ -28,7 +28,7 @@ import {
   PAYMENT_METHOD_LABELS,
   ORDER_TYPE_LABELS 
 } from '@/lib/locale'
-import { createOrder, updateOrder } from '@/app/actions/orders'
+import { createOrder, updateOrder, getOrderItems } from '@/app/actions/orders'
 import { ProductSelector } from './product-selector'
 import { OrderItemsForm } from './order-items-form'
 
@@ -94,7 +94,17 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
         note: order.note,
         type: order.type || 'sale',
       })
-      // 編輯模式不重置 items（需要另外載入）
+      
+      // 編輯模式：載入 order_items
+      getOrderItems(order.id).then((items) => {
+        if (items.length > 0) {
+          setIsMultiItem(true)
+          setOrderItems(items)
+        } else {
+          setIsMultiItem(false)
+          setOrderItems([])
+        }
+      })
     } else if (mode === 'create') {
       // 新增模式：完全重置所有 state
       setFormData({ ...emptyForm })
