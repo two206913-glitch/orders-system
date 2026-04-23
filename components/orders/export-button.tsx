@@ -27,16 +27,18 @@ function escapeCSV(value: string | number | null | undefined): string {
   return str
 }
 
+// 注意：orders.quantity, product_name, unit_price 已停用
+// 這些欄位應從 order_items 取得，但匯出功能暫時只使用訂單層級資料
 function getOrderData(orders: Order[]) {
   return orders.map((order) => ({
     日期: formatDate(order.date),
     批次: order.batch || '',
     客戶名稱: order.customer_name || '',
-    產品名稱: order.product_name || '',
-    規格: order.spec || '',
-    數量: order.quantity ?? '',
-    單價: order.unit_price ?? '',
-    總價: order.total_price ?? '',
+    // 不再使用 orders.product_name, quantity, unit_price
+    // 這些欄位已從 order_items 取得
+    總金額: order.total_price ?? '',
+    成本: order.cost ?? '',
+    運費: order.shipping_fee ?? '',
     供應商: order.supplier || '',
     來源: order.source || '',
     付款狀態: getPaymentStatusLabel(order.payment_status),
@@ -53,15 +55,14 @@ export function ExportButton({ orders }: ExportButtonProps) {
     setIsExporting(true)
     
     try {
+      // 不再使用 orders.quantity, product_name, unit_price
       const headers = [
         '日期',
         '批次',
         '客戶名稱',
-        '產品名稱',
-        '規格',
-        '數量',
-        '單價',
-        '總價',
+        '總金額',
+        '成本',
+        '運費',
         '供應商',
         '來源',
         '付款狀態',
@@ -74,11 +75,9 @@ export function ExportButton({ orders }: ExportButtonProps) {
         escapeCSV(formatDate(order.date)),
         escapeCSV(order.batch),
         escapeCSV(order.customer_name),
-        escapeCSV(order.product_name),
-        escapeCSV(order.spec),
-        escapeCSV(order.quantity),
-        escapeCSV(order.unit_price),
         escapeCSV(order.total_price),
+        escapeCSV(order.cost),
+        escapeCSV(order.shipping_fee),
         escapeCSV(order.supplier),
         escapeCSV(order.source),
         escapeCSV(getPaymentStatusLabel(order.payment_status)),
@@ -112,16 +111,14 @@ export function ExportButton({ orders }: ExportButtonProps) {
       const data = getOrderData(orders)
       const ws = XLSX.utils.json_to_sheet(data)
       
-      // Set column widths
+      // Set column widths - 不再使用 product_name, quantity, unit_price
       ws['!cols'] = [
         { wch: 12 }, // 日期
         { wch: 12 }, // 批次
         { wch: 15 }, // 客戶名稱
-        { wch: 15 }, // 產品名稱
-        { wch: 12 }, // 規格
-        { wch: 8 },  // 數量
-        { wch: 10 }, // 單價
-        { wch: 12 }, // 總價
+        { wch: 12 }, // 總金額
+        { wch: 12 }, // 成本
+        { wch: 10 }, // 運費
         { wch: 15 }, // 供應商
         { wch: 12 }, // 來源
         { wch: 10 }, // 付款狀態

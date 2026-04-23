@@ -23,9 +23,21 @@ export async function getMonthlyStats(year?: number): Promise<MonthlyStats[]> {
   
   const { data: orders } = await supabase
     .from('orders')
-    .select('*')
+    .select('id, date, type, total_price, cost, shipping_fee, customer_name')
     .gte('date', `${targetYear}-01-01`)
     .lte('date', `${targetYear}-12-31`)
+  
+  // 取得所有 order_items（用於熱銷產品統計）
+  const orderIds = orders?.map(o => o.id) || []
+  const { data: orderItems } = orderIds.length > 0
+    ? await supabase
+        .from('order_items')
+        .select('order_id, product_name, quantity, subtotal')
+        .in('order_id', orderIds)
+    : { data: [] }
+  
+  // 建立 order_id -> order 對應
+  const ordersMap = new Map(orders?.map(o => [o.id, o]) || [])
   
   if (!orders) return []
   
@@ -87,16 +99,20 @@ export async function getMonthlyStats(year?: number): Promise<MonthlyStats[]> {
     // 銷售運費算入收入（客戶支付），進貨運費算入成本（我方支付）
     const profit = (salesRevenue + salesShipping) - (purchaseCost + purchaseShipping)
     
-    // 熱銷產品統計（只算銷貨）
+    // 熱銷產品統計（從 order_items 計算，不再使用 orders.quantity）
     const productMap = new Map<string, { quantity: number; revenue: number }>()
     data.sales.forEach((o) => {
-      if (!o.product_name) return
-      const existing = productMap.get(o.product_name) || { quantity: 0, revenue: 0 }
-      const qty = o.quantity || 0
-      const rev = o.total_price || 0
-      existing.quantity += o.type === 'sale_return' ? -qty : qty
-      existing.revenue += o.type === 'sale_return' ? -rev : rev
-      productMap.set(o.product_name, existing)
+      // 從 order_items 取得該訂單的商品明細
+      const items = orderItems?.filter(item => item.order_id === o.id) || []
+      items.forEach((item) => {
+        if (!item.product_name) return
+        const existing = productMap.get(item.product_name) || { quantity: 0, revenue: 0 }
+        const qty = item.quantity || 0
+        const rev = item.subtotal || 0
+        existing.quantity += o.type === 'sale_return' ? -qty : qty
+        existing.revenue += o.type === 'sale_return' ? -rev : rev
+        productMap.set(item.product_name, existing)
+      })
     })
     const topProducts = Array.from(productMap.entries())
       .map(([name, data]) => ({ name, ...data }))

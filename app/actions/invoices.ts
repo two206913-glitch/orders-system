@@ -146,15 +146,16 @@ export async function getCustomerInvoice(
         }
       })
     } else {
-      // 無 order_items：使用舊的 orders 欄位
+      // 無 order_items：舊訂單不顯示商品明細（只顯示訂單總額）
+      // 不再使用 orders.quantity，因為該欄位已停止更新
       return [{
         id: order.id,
         date: order.date || '',
         type: order.type || 'sale',
-        product_name: order.product_name || '',
-        spec: order.spec,
-        quantity: order.type === 'sale_return' ? -(order.quantity || 0) : (order.quantity || 0),
-        unit_price: order.unit_price || 0,
+        product_name: '(舊資料格式)',
+        spec: null,
+        quantity: 0,  // 不使用 orders.quantity
+        unit_price: 0,
         shipping_fee: order.type === 'sale_return' ? -(order.shipping_fee || 0) : (order.shipping_fee || 0),
         amount: order.type === 'sale_return' ? -(order.total_price || 0) : (order.total_price || 0),
         note: order.note,
@@ -292,19 +293,18 @@ export async function getSupplierInvoice(
         }
       })
     } else {
-      // 無 order_items：使用舊的 orders 欄位
-      const qty = order.quantity || 0
+      // 無 order_items：舊訂單不顯示商品明細（只顯示訂單總成本）
+      // 不再使用 orders.quantity，因為該欄位已停止更新
       const cost = order.cost || 0
-      const unitCost = qty > 0 ? Math.round(cost / qty) : 0
       
       return [{
         id: order.id,
         date: order.date || '',
         type: order.type || 'purchase',
-        product_name: order.product_name || '',
-        spec: order.spec,
-        quantity: order.type === 'purchase_return' ? -qty : qty,
-        unit_price: unitCost,
+        product_name: '(舊資料格式)',
+        spec: null,
+        quantity: 0,  // 不使用 orders.quantity
+        unit_price: 0,
         shipping_fee: order.type === 'purchase_return' ? -shippingFee : shippingFee,
         amount: order.type === 'purchase_return' ? -cost : cost,
         note: order.note,
