@@ -24,8 +24,9 @@ export async function getOrders(filters?: {
     .select('*', { count: 'exact' })
 
   if (filters?.search) {
+    // 搜尋客戶、批次、供應商（不再搜尋 orders.product_name）
     query = query.or(
-      `customer_name.ilike.%${filters.search}%,product_name.ilike.%${filters.search}%,batch.ilike.%${filters.search}%,supplier.ilike.%${filters.search}%`
+      `customer_name.ilike.%${filters.search}%,batch.ilike.%${filters.search}%,supplier.ilike.%${filters.search}%`
     )
   }
 
@@ -204,11 +205,11 @@ async function updateProductStock(
   }
 }
 
-// 建立訂單（支援多商品）
+// 建立訂單（所有商品資料必須透過 order_items 傳入）
 export async function createOrder(order: OrderInsert, items?: OrderItem[]) {
   const supabase = await createClient()
 
-  // 建立訂單主表
+  // 建立訂單主表（不再寫入 product_name, quantity, unit_price, spec）
   const { data: newOrder, error } = await supabase
     .from('orders')
     .insert([order])
@@ -220,7 +221,7 @@ export async function createOrder(order: OrderInsert, items?: OrderItem[]) {
     throw new Error('Failed to create order')
   }
 
-  // 如果有多商品項目，寫入 order_items 表
+  // 寫入 order_items 表（所有商品資料都存這裡）
   if (items && items.length > 0) {
     const orderItems = items.map(item => ({
       order_id: newOrder.id,
@@ -239,7 +240,6 @@ export async function createOrder(order: OrderInsert, items?: OrderItem[]) {
 
     if (itemsError) {
       console.error('Error creating order items:', itemsError)
-      // 不中斷，訂單已建立
     }
 
     // 更新每個商品的庫存
@@ -247,11 +247,6 @@ export async function createOrder(order: OrderInsert, items?: OrderItem[]) {
       const stockDelta = getStockDelta(order.type, item.quantity)
       await updateProductStock(supabase, item.product_name, item.product_variant, stockDelta)
     }
-  } else {
-    // 舊邏輯：單商品訂單
-    const quantity = order.quantity ?? 0
-    const stockDelta = getStockDelta(order.type, quantity)
-    await updateProductStock(supabase, order.product_name, order.spec, stockDelta)
   }
 
   return newOrder
@@ -275,7 +270,7 @@ export async function getOrderItems(orderId: string): Promise<OrderItem[]> {
   return data || []
 }
 
-// 更新訂單（支援多商品）
+// 更新訂單（所有商品資料必須透過 order_items 傳入）
 export async function updateOrder(id: string, updates: Partial<OrderInsert>, items?: OrderItem[]) {
   const supabase = await createClient()
 
@@ -286,7 +281,7 @@ export async function updateOrder(id: string, updates: Partial<OrderInsert>, ite
     .eq('id', id)
     .single()
 
-  // 取得原訂單的商品項目
+  // 取得原訂單的商品項目（從 order_items 表）
   const { data: originalItems } = await supabase
     .from('order_items')
     .select('*')
@@ -299,7 +294,7 @@ export async function updateOrder(id: string, updates: Partial<OrderInsert>, ite
     throw new Error('Failed to update order')
   }
 
-  // 如果有新的商品項目列表
+  // 處理商品項目（一律從 order_items 處理）
   if (items && items.length > 0) {
     // 還原原有商品項目的庫存
     if (originalItems && originalItems.length > 0 && originalOrder) {
@@ -332,24 +327,6 @@ export async function updateOrder(id: string, updates: Partial<OrderInsert>, ite
       const newDelta = getStockDelta(newType, item.quantity)
       await updateProductStock(supabase, item.product_name, item.product_variant, newDelta)
     }
-  } else if (originalOrder) {
-    // 舊邏輯：單商品訂單
-    const oldType = originalOrder.type
-    const newType = updates.type ?? oldType
-    const oldQty = originalOrder.quantity ?? 0
-    const newQty = updates.quantity ?? oldQty
-    const oldProduct = originalOrder.product_name
-    const newProduct = updates.product_name ?? oldProduct
-    const oldSpec = originalOrder.spec
-    const newSpec = updates.spec ?? oldSpec
-
-    // 還原原訂單的庫存影響
-    const oldDelta = getStockDelta(oldType, oldQty)
-    await updateProductStock(supabase, oldProduct, oldSpec, -oldDelta)
-
-    // 套用新訂單的庫存影響
-    const newDelta = getStockDelta(newType, newQty)
-    await updateProductStock(supabase, newProduct, newSpec, newDelta)
   }
 }
 
@@ -359,14 +336,14 @@ export async function deleteOrder(id: string) {
   // 先取得訂單資料以還原庫存
   const { data: order } = await supabase
     .from('orders')
-    .select('*')
+    .select('type')
     .eq('id', id)
     .single()
 
-  // 取得訂單的商品項目
+  // 取得訂單的商品項目（從 order_items 表）
   const { data: orderItems } = await supabase
     .from('order_items')
-    .select('*')
+    .select('product_name, product_variant, quantity')
     .eq('order_id', id)
 
   // 刪除訂單（order_items 會因為 ON DELETE CASCADE 自動刪除）
@@ -377,19 +354,11 @@ export async function deleteOrder(id: string) {
     throw new Error('Failed to delete order')
   }
 
-  // 還原庫存
-  if (order) {
-    // 如果有多商品項目，還原每個商品的庫存
-    if (orderItems && orderItems.length > 0) {
-      for (const item of orderItems) {
-        const stockDelta = getStockDelta(order.type, item.quantity)
-        await updateProductStock(supabase, item.product_name, item.product_variant, -stockDelta)
-      }
-    } else {
-      // 舊邏輯：單商品訂單
-      const quantity = order.quantity ?? 0
-      const stockDelta = getStockDelta(order.type, quantity)
-      await updateProductStock(supabase, order.product_name, order.spec, -stockDelta)
+  // 還原庫存（一律從 order_items 取得商品資訊）
+  if (order && orderItems && orderItems.length > 0) {
+    for (const item of orderItems) {
+      const stockDelta = getStockDelta(order.type, item.quantity)
+      await updateProductStock(supabase, item.product_name, item.product_variant, -stockDelta)
     }
   }
 }
