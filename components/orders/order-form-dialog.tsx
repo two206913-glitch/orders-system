@@ -117,40 +117,51 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     startTransition(async () => {
-      // 多商品模式時計算總金額和利潤
+      // 準備訂單資料（不再寫入 product_name, quantity, unit_price 到 orders 表）
       let submitData = { ...formData }
+      
+      // 清除舊欄位，這些欄位不再寫入 orders 表
+      delete submitData.product_name
+      delete submitData.quantity
+      delete submitData.unit_price
+      delete submitData.spec
+      
       if (isMultiItem && orderItems.length > 0) {
-        // 商品總額 = 所有商品小計加總
+        // 商品總額 = 所有商品小計加總（從 order_items 計算）
         const totalItemsAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0)
-        const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0)
         // 總成本 = 所有 order_items 的 (cost × quantity) 加總
         const totalCost = orderItems.reduce((sum, item) => sum + (item.cost * item.quantity), 0)
         const shippingFee = formData.shipping_fee ?? 0
         
-        // 總金額 = 商品總額 + 運費
+        // 總金額 = 商品總額 + 運費（此值由 order_items 計算得出）
         submitData.total_price = totalItemsAmount + shippingFee
-        submitData.quantity = totalQuantity
-        submitData.cost = totalCost  // 保存總成本
+        submitData.cost = totalCost
         
         // 利潤計算
         const orderType = formData.type || 'sale'
         const isSale = orderType === 'sale' || orderType === 'sale_return'
         if (isSale) {
-          // 銷貨利潤 = (商品銷售總額 + 銷售運費) - 商品進貨成本
           submitData.profit = (totalItemsAmount + shippingFee) - totalCost
         } else {
-          // 進貨不計算利潤
           submitData.profit = null
         }
-        
-        // 合併商品名稱顯示
-        submitData.product_name = orderItems.map(i => i.product_name).join(', ')
       }
       
+      // 一律傳入 orderItems（即使單商品模式也轉為 order_items）
+      const itemsToSave = isMultiItem ? orderItems : (formData.product_name ? [{
+        product_id: selectedProductId,
+        product_name: formData.product_name,
+        product_variant: formData.spec,
+        quantity: formData.quantity || 0,
+        unit_price: formData.unit_price || 0,
+        cost: formData.cost || 0,
+        subtotal: (formData.quantity || 0) * (formData.unit_price || 0),
+      }] : [])
+      
       if (mode === 'edit' && order) {
-        await updateOrder(order.id, submitData, isMultiItem ? orderItems : undefined)
+        await updateOrder(order.id, submitData, itemsToSave.length > 0 ? itemsToSave : undefined)
       } else {
-        await createOrder(submitData, isMultiItem ? orderItems : undefined)
+        await createOrder(submitData, itemsToSave.length > 0 ? itemsToSave : undefined)
       }
       router.refresh()
       onOpenChange(false)
