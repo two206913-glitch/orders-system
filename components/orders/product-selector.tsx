@@ -48,16 +48,28 @@ export function ProductSelector({
 }: ProductSelectorProps) {
   const [open, setOpen] = useState(false)
   const [products, setProducts] = useState<ProductOption[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [showWarning, setShowWarning] = useState(false)
 
   const isPurchase = orderType === 'purchase' || orderType === 'purchase_return'
 
+  // 每次打開下拉選單時重新 fetch 最新商品資料
+  // 直接從 products 表讀取 stock，確保與商品管理頁顯示一致
   useEffect(() => {
-    getProductsForSelect()
-      .then(setProducts)
-      .finally(() => setLoading(false))
-  }, [])
+    if (open) {
+      setLoading(true)
+      getProductsForSelect()
+        .then(setProducts)
+        .finally(() => setLoading(false))
+    }
+  }, [open])
+  
+  // 初始載入（用於顯示已選擇的商品名稱）
+  useEffect(() => {
+    if (value && products.length === 0) {
+      getProductsForSelect().then(setProducts)
+    }
+  }, [value, products.length])
 
   // 進貨時依供應商排序：優先顯示該供應商商品
   const sortedProducts = useMemo(() => {
