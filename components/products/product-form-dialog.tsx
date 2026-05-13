@@ -204,18 +204,22 @@ export function ProductFormDialog({
                 <FieldLabel>成本 (NT$)</FieldLabel>
                 <Input
                   type="number"
+                  step="0.01"
+                  min="0"
                   placeholder="0"
                   value={formData.cost || ''}
-                  onChange={(e) => updateField('cost', e.target.value ? parseInt(e.target.value) : 0)}
+                  onChange={(e) => updateField('cost', e.target.value ? parseFloat(e.target.value) : 0)}
                 />
               </Field>
               <Field>
                 <FieldLabel>售價 (NT$)</FieldLabel>
                 <Input
                   type="number"
+                  step="0.01"
+                  min="0"
                   placeholder="0"
                   value={formData.price || ''}
-                  onChange={(e) => updateField('price', e.target.value ? parseInt(e.target.value) : 0)}
+                  onChange={(e) => updateField('price', e.target.value ? parseFloat(e.target.value) : 0)}
                 />
               </Field>
               <Field>

@@ -43,10 +43,11 @@ export function OrderItemsForm({ items, onChange, orderType, selectedSupplier }:
     const item = { ...newItems[index], [field]: value }
     
     // 自動計算小計：統一使用 unit_price（銷貨時為售價，進貨時為成本）
+    // 小計四捨五入為整數
     if (field === 'quantity' || field === 'unit_price') {
       const qty = field === 'quantity' ? (value as number) : item.quantity
       const price = field === 'unit_price' ? (value as number) : item.unit_price
-      item.subtotal = qty * price
+      item.subtotal = Math.round(qty * price)
     }
     
     newItems[index] = item
@@ -78,8 +79,8 @@ export function OrderItemsForm({ items, onChange, orderType, selectedSupplier }:
     item.unit_price = isPurchase ? product.cost : product.price
     item.cost = product.cost  // 保留成本用於利潤計算
     
-    // 計算小計（統一用 unit_price）
-    item.subtotal = item.quantity * item.unit_price
+    // 計算小計（統一用 unit_price，四捨五入為整數）
+    item.subtotal = Math.round(item.quantity * item.unit_price)
     
     onChange(newItems)
   }
@@ -146,14 +147,15 @@ export function OrderItemsForm({ items, onChange, orderType, selectedSupplier }:
                     onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
                   />
                 </div>
-                {/* 銷貨顯示售價，進貨顯示成本 */}
+                {/* 銷貨顯示售價，進貨顯示成本（可輸入小數） */}
                 <div>
                   <label className="text-xs text-muted-foreground">{isSale ? '售價' : '成本'}</label>
                   <Input
                     type="number"
                     min={0}
+                    step="0.01"
                     value={item.unit_price}
-                    onChange={(e) => updateItem(index, 'unit_price', parseInt(e.target.value) || 0)}
+                    onChange={(e) => updateItem(index, 'unit_price', parseFloat(e.target.value) || 0)}
                   />
                 </div>
                 <div>
