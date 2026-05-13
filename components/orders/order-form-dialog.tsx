@@ -127,27 +127,28 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
       delete submitData.spec
       
       if (isMultiItem && orderItems.length > 0) {
-        // 商品總額 = 所有商品小計加總（從 order_items 計算）
+        // 商品總額 = 所有商品小計加總（小計已在 order_items 中四捨五入）
         const totalItemsAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0)
-        // 總成本 = 所有 order_items 的 (cost × quantity) 加總
-        const totalCost = orderItems.reduce((sum, item) => sum + (item.cost * item.quantity), 0)
+        // 總成本 = 所有 order_items 的 (cost × quantity) 加總，四捨五入
+        const totalCost = Math.round(orderItems.reduce((sum, item) => sum + (item.cost * item.quantity), 0))
         const shippingFee = formData.shipping_fee ?? 0
         
-        // 總金額 = 商品總額 + 運費（此值由 order_items 計算得出）
+        // 總金額 = 商品總額 + 運費
         submitData.total_price = totalItemsAmount + shippingFee
         submitData.cost = totalCost
         
-        // 利潤計算
+        // 利潤計算（四捨五入為整數）
         const orderType = formData.type || 'sale'
         const isSale = orderType === 'sale' || orderType === 'sale_return'
         if (isSale) {
-          submitData.profit = (totalItemsAmount + shippingFee) - totalCost
+          submitData.profit = Math.round((totalItemsAmount + shippingFee) - totalCost)
         } else {
           submitData.profit = null
         }
       }
       
       // 一律傳入 orderItems（即使單商品模式也轉為 order_items）
+      // 單商品小計也要四捨五入
       const itemsToSave = isMultiItem ? orderItems : (formData.product_name ? [{
         product_id: selectedProductId,
         product_name: formData.product_name,
@@ -155,7 +156,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
         quantity: formData.quantity || 0,
         unit_price: formData.unit_price || 0,
         cost: formData.cost || 0,
-        subtotal: (formData.quantity || 0) * (formData.unit_price || 0),
+        subtotal: Math.round((formData.quantity || 0) * (formData.unit_price || 0)),
       }] : [])
       
       if (mode === 'edit' && order) {
@@ -218,8 +219,8 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
     let total: number
     let profit: number | null = null
     
-    // 商品總額 = 數量 × 單價（銷貨用 unit_price，進貨用 cost）
-    const itemsAmount = isPurchase ? (quantity * unitCost) : (quantity * unitPrice)
+// 商品總額 = 數量 × 單價（四捨五入為整數）
+    const itemsAmount = Math.round(isPurchase ? (quantity * unitCost) : (quantity * unitPrice))
     
     if (isPurchase) {
       // 進貨單：總成本 = 商品總額 + 進貨運費
@@ -230,8 +231,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
       total = itemsAmount + shippingFee
       
       // 利潤 = (商品銷售總額 + 銷售運費) - 商品進貨成本
-      // 注意：單筆訂單的利潤只計算此訂單的毛利，不含進貨運費（因為進貨運費在進貨訂單中計算）
-      const totalCost = quantity * unitCost
+      const totalCost = Math.round(quantity * unitCost)
       if (type === 'sale') {
         profit = unitCost > 0 ? (itemsAmount + shippingFee) - totalCost : null
       } else if (type === 'sale_return') {
@@ -242,7 +242,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
     setFormData((prev) => ({
       ...prev,
       total_price: total || null,
-      profit,
+      profit: profit !== null ? Math.round(profit) : null,
     }))
   }, [formData.quantity, formData.unit_price, formData.cost, formData.shipping_fee, formData.type, isMultiItem])
   
@@ -420,12 +420,14 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                     <FieldLabel>{isSaleType ? '售價 (NT$)' : '成本 (NT$)'}</FieldLabel>
                     <Input
                       type="number"
+                      step="0.01"
+                      min="0"
                       placeholder="0"
                       value={formData.unit_price ?? ''}
-                      onChange={(e) => updateField('unit_price', e.target.value ? parseInt(e.target.value) : null)}
+                      onChange={(e) => updateField('unit_price', e.target.value ? parseFloat(e.target.value) : null)}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      {isSaleType ? '每件商品的售價' : '每件商品的進貨成本'}
+                      {isSaleType ? '每件商品的售價（可含小數）' : '每件商品的進貨成本（可含小數）'}
                     </p>
                   </Field>
                 </div>
@@ -442,13 +444,15 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                   </FieldLabel>
                   <Input
                     type="number"
+                    step="0.01"
+                    min="0"
                     placeholder={isPurchaseType ? '輸入單件進貨成本' : '銷貨成本'}
                     value={formData.cost ?? ''}
-                    onChange={(e) => updateField('cost', e.target.value ? parseInt(e.target.value) : null)}
+                    onChange={(e) => updateField('cost', e.target.value ? parseFloat(e.target.value) : null)}
                     className={isPurchaseType ? 'border-primary/50' : ''}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    {isPurchaseType ? '每件商品的進貨成本' : '銷貨成本'}
+                    {isPurchaseType ? '每件商品的進貨成本（可含小數）' : '銷貨成本（可含小數）'}
                   </p>
                 </Field>
                 <Field>
