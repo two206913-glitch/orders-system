@@ -117,59 +117,75 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     startTransition(async () => {
-      // 準備訂單資料（不再寫入 product_name, quantity, unit_price 到 orders 表）
-      let submitData = { ...formData }
-      
-      // 清除舊欄位，這些欄位不再寫入 orders 表
-      delete submitData.product_name
-      delete submitData.quantity
-      delete submitData.unit_price
-      delete submitData.spec
-      
-      if (isMultiItem && orderItems.length > 0) {
-        // 商品總額 = 所有商品小計加總（subtotal 是使用者輸入的最終值）
-        const totalItemsAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0)
-        // 總成本 = 商品總額（直接用 subtotal 加總，不再用 cost × quantity）
-        const totalCost = totalItemsAmount
-        const shippingFee = formData.shipping_fee ?? 0
+      try {
+        console.log('[v0] handleSubmit - starting')
+        console.log('[v0] handleSubmit - formData:', JSON.stringify(formData, null, 2))
+        console.log('[v0] handleSubmit - isMultiItem:', isMultiItem)
+        console.log('[v0] handleSubmit - orderItems:', JSON.stringify(orderItems, null, 2))
         
-        // 總金額 = 商品總額 + 運費
-        submitData.total_price = totalItemsAmount + shippingFee
-        submitData.cost = totalCost  // 保存總成本（= subtotal 加總）
+        // 準備訂單資料（不再寫入 product_name, quantity, unit_price 到 orders 表）
+        let submitData = { ...formData }
         
-        // 利潤計算（四捨五入為整數）- 只有銷貨才計算
-        const orderType = formData.type || 'sale'
-        const isSale = orderType === 'sale' || orderType === 'sale_return'
-        if (isSale) {
-          // 銷貨利潤 = (商品總額 + 運費) - 商品成本
-          // 這裡的成本需要從 order_items.cost × quantity 計算
-          const itemsCost = Math.round(orderItems.reduce((sum, item) => sum + (item.cost * item.quantity), 0))
-          submitData.profit = Math.round((totalItemsAmount + shippingFee) - itemsCost)
-        } else {
-          // 進貨不計算利潤
-          submitData.profit = null
+        // 清除舊欄位，這些欄位不再寫入 orders 表
+        delete submitData.product_name
+        delete submitData.quantity
+        delete submitData.unit_price
+        delete submitData.spec
+        
+        if (isMultiItem && orderItems.length > 0) {
+          // 商品總額 = 所有商品小計加總（subtotal 是使用者輸入的最終值）
+          const totalItemsAmount = orderItems.reduce((sum, item) => sum + item.subtotal, 0)
+          // 總成本 = 商品總額（直接用 subtotal 加總，不再用 cost × quantity）
+          const totalCost = totalItemsAmount
+          const shippingFee = formData.shipping_fee ?? 0
+          
+          // 總金額 = 商品總額 + 運費
+          submitData.total_price = totalItemsAmount + shippingFee
+          submitData.cost = totalCost  // 保存總成本（= subtotal 加總）
+          
+          // 利潤計算（四捨五入為整數）- 只有銷貨才計算
+          const orderType = formData.type || 'sale'
+          const isSale = orderType === 'sale' || orderType === 'sale_return'
+          if (isSale) {
+            // 銷貨利潤 = (商品總額 + 運費) - 商品成本
+            // 這裡的成本需要從 order_items.cost × quantity 計算
+            const itemsCost = Math.round(orderItems.reduce((sum, item) => sum + (item.cost * item.quantity), 0))
+            submitData.profit = Math.round((totalItemsAmount + shippingFee) - itemsCost)
+          } else {
+            // 進貨不計算利潤
+            submitData.profit = null
+          }
         }
+        
+        // 一律傳入 orderItems（即使單商品模式也轉為 order_items）
+        // 單商品小計也要四捨五入
+        const itemsToSave = isMultiItem ? orderItems : (formData.product_name ? [{
+          product_id: selectedProductId,
+          product_name: formData.product_name,
+          product_variant: formData.spec,
+          quantity: formData.quantity || 0,
+          unit_price: formData.unit_price || 0,
+          cost: formData.cost || 0,
+          subtotal: Math.round((formData.quantity || 0) * (formData.unit_price || 0)),
+        }] : [])
+        
+        console.log('[v0] handleSubmit - submitData:', JSON.stringify(submitData, null, 2))
+        console.log('[v0] handleSubmit - itemsToSave:', JSON.stringify(itemsToSave, null, 2))
+        
+        if (mode === 'edit' && order) {
+          console.log('[v0] handleSubmit - calling updateOrder')
+          await updateOrder(order.id, submitData, itemsToSave.length > 0 ? itemsToSave : undefined)
+        } else {
+          console.log('[v0] handleSubmit - calling createOrder')
+          await createOrder(submitData, itemsToSave.length > 0 ? itemsToSave : undefined)
+        }
+        console.log('[v0] handleSubmit - order saved successfully')
+        router.refresh()
+        onOpenChange(false)
+      } catch (err) {
+        console.error('[v0] handleSubmit - error:', err)
+        throw err
       }
-      
-      // 一律傳入 orderItems（即使單商品模式也轉為 order_items）
-      // 單商品小計也要四捨五入
-      const itemsToSave = isMultiItem ? orderItems : (formData.product_name ? [{
-        product_id: selectedProductId,
-        product_name: formData.product_name,
-        product_variant: formData.spec,
-        quantity: formData.quantity || 0,
-        unit_price: formData.unit_price || 0,
-        cost: formData.cost || 0,
-        subtotal: Math.round((formData.quantity || 0) * (formData.unit_price || 0)),
-      }] : [])
-      
-      if (mode === 'edit' && order) {
-        await updateOrder(order.id, submitData, itemsToSave.length > 0 ? itemsToSave : undefined)
-      } else {
-        await createOrder(submitData, itemsToSave.length > 0 ? itemsToSave : undefined)
-      }
-      router.refresh()
-      onOpenChange(false)
     })
   }
 
