@@ -42,12 +42,36 @@ export function OrderItemsForm({ items, onChange, orderType, selectedSupplier }:
     const newItems = [...items]
     const item = { ...newItems[index], [field]: value }
     
-    // 自動計算小計：統一使用 unit_price（銷貨時為售價，進貨時為成本）
-    // 小計四捨五入為整數
+    // 進貨單：當修改數量或單件成本時，自動計算小計
+    // 銷貨單：當修改數量或售價時，自動計算小計
     if (field === 'quantity' || field === 'unit_price') {
       const qty = field === 'quantity' ? (value as number) : item.quantity
       const price = field === 'unit_price' ? (value as number) : item.unit_price
+      // 小計四捨五入為整數
       item.subtotal = Math.round(qty * price)
+      
+      // 進貨單：同步更新 cost
+      if (isPurchase && field === 'unit_price') {
+        item.cost = value as number
+      }
+    }
+    
+    newItems[index] = item
+    onChange(newItems)
+  }
+
+  // 進貨單專用：直接輸入總成本，反推單件成本
+  const updateSubtotalDirectly = (index: number, subtotalValue: number) => {
+    const newItems = [...items]
+    const item = { ...newItems[index] }
+    
+    // 直接設定 subtotal 為使用者輸入的值（整數）
+    item.subtotal = Math.round(subtotalValue)
+    
+    // 反推單件成本 = 總成本 / 數量（可為小數）
+    if (item.quantity > 0) {
+      item.cost = subtotalValue / item.quantity
+      item.unit_price = item.cost  // 進貨單的 unit_price = cost
     }
     
     newItems[index] = item
@@ -137,7 +161,7 @@ export function OrderItemsForm({ items, onChange, orderType, selectedSupplier }:
                 </div>
               )}
 
-              <div className="grid grid-cols-4 gap-3">
+              <div className={`grid ${isPurchase ? 'grid-cols-4' : 'grid-cols-4'} gap-3`}>
                 <div>
                   <label className="text-xs text-muted-foreground">數量</label>
                   <Input
@@ -147,9 +171,11 @@ export function OrderItemsForm({ items, onChange, orderType, selectedSupplier }:
                     onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
                   />
                 </div>
-                {/* 銷貨顯示售價，進貨顯示成本（可輸入小數） */}
+                {/* 銷貨顯示售價，進貨顯示單件成本（可輸入小數） */}
                 <div>
-                  <label className="text-xs text-muted-foreground">{isSale ? '售價' : '成本'}</label>
+                  <label className="text-xs text-muted-foreground">
+                    {isSale ? '售價' : '單件成本'}
+                  </label>
                   <Input
                     type="number"
                     min={0}
@@ -157,15 +183,39 @@ export function OrderItemsForm({ items, onChange, orderType, selectedSupplier }:
                     value={item.unit_price}
                     onChange={(e) => updateItem(index, 'unit_price', parseFloat(e.target.value) || 0)}
                   />
+                  {isPurchase && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {item.cost > 0 ? `顯示: ${item.cost.toFixed(2)}` : ''}
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">小計</label>
-                  <Input
-                    type="number"
-                    value={item.subtotal}
-                    readOnly
-                    className="bg-muted"
-                  />
+                  <label className="text-xs text-muted-foreground">
+                    {isPurchase ? '總成本' : '小計'}
+                  </label>
+                  {isPurchase ? (
+                    // 進貨單：總成本可直接輸入
+                    <Input
+                      type="number"
+                      min={0}
+                      value={item.subtotal}
+                      onChange={(e) => updateSubtotalDirectly(index, parseInt(e.target.value) || 0)}
+                      className="border-primary/50"
+                    />
+                  ) : (
+                    // 銷貨單：小計為唯讀
+                    <Input
+                      type="number"
+                      value={item.subtotal}
+                      readOnly
+                      className="bg-muted"
+                    />
+                  )}
+                  {isPurchase && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      可直接輸入
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
