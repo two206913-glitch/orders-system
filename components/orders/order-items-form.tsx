@@ -185,7 +185,7 @@ export function OrderItemsForm({ items, onChange, orderType, selectedSupplier }:
                   />
                   {isPurchase && (
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {item.cost > 0 ? `顯示: ${item.cost.toFixed(2)}` : ''}
+                      {item.cost > 0 ? `反推: ${item.cost.toFixed(6)}` : ''}
                     </p>
                   )}
                 </div>
