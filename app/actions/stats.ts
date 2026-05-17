@@ -27,7 +27,7 @@ export async function getMonthlyStats(year?: number): Promise<MonthlyStats[]> {
     .gte('date', `${targetYear}-01-01`)
     .lte('date', `${targetYear}-12-31`)
   
-  // 取得所有 order_items（用於熱銷產品統計）
+  // 取得所有 order_items（用於熱銷產品統計和進貨成本計算）
   const orderIds = orders?.map(o => o.id) || []
   const { data: orderItems } = orderIds.length > 0
     ? await supabase
@@ -83,10 +83,21 @@ export async function getMonthlyStats(year?: number): Promise<MonthlyStats[]> {
       return sum + (o.type === 'sale_return' ? -shipping : shipping)
     }, 0)
     
-    // 計算進貨成本（進貨用 cost 欄位，進退用負數沖銷）
+    // 計算進貨成本（從 order_items.subtotal 加總，這是使用者輸入的最終值）
     const purchaseCost = data.purchases.reduce((sum, o) => {
-      const amount = o.cost || 0  // 使用 cost 欄位，不是 total_price
-      return sum + (o.type === 'purchase_return' ? -amount : amount)
+      // 優先從 order_items 計算，若無則用 orders.cost
+      const itemsForOrder = orderItems?.filter(item => item.order_id === o.id) || []
+      let orderCost: number
+      
+      if (itemsForOrder.length > 0) {
+        // 有 order_items，使用 subtotal 加總（不含運費）
+        orderCost = itemsForOrder.reduce((s, item) => s + (item.subtotal || 0), 0)
+      } else {
+        // 無 order_items，使用 orders.cost
+        orderCost = o.cost || 0
+      }
+      
+      return sum + (o.type === 'purchase_return' ? -orderCost : orderCost)
     }, 0)
     
     // 計算進貨運費

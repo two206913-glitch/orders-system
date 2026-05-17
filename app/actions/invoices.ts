@@ -224,7 +224,7 @@ export async function getSupplierInvoice(
 ): Promise<SupplierInvoice> {
   const supabase = await createClient()
   
-  // 取得該供應商在日期區間內的進貨和進退訂單
+  // 取得該供應商在日期區間內的���貨和進退訂單
   const { data: orders } = await supabase
     .from('orders')
     .select('id, date, type, product_name, spec, quantity, unit_price, shipping_fee, cost, note')
@@ -272,12 +272,13 @@ export async function getSupplierInvoice(
     
     if (orderItemsForThis.length > 0) {
       // 有 order_items：每個 item 獨立顯示
-      // 單件成本 = order_items.cost（必須使用此欄位，不可用其他值）
-      // 金額 = order_items.cost × order_items.quantity
+      // 重要：金額使用 subtotal（最終依據），單件成本只作為顯示參考
       return orderItemsForThis.map((item, idx) => {
-        const unitCost = item.cost ?? 0  // 單件成本只從 order_items.cost 取得
         const qty = item.quantity ?? 0
-        const amount = unitCost * qty    // 金額 = 成本 × 數量
+        // 金額直接使用 subtotal，這是使用者輸入的最終值
+        const amount = item.subtotal ?? 0
+        // 單件成本 = subtotal / quantity（作為顯示參考）
+        const unitCost = qty > 0 ? amount / qty : (item.cost ?? 0)
         
         return {
           id: `${order.id}-${idx}`,
@@ -286,9 +287,9 @@ export async function getSupplierInvoice(
           product_name: item.product_name || '',
           spec: item.product_variant,
           quantity: order.type === 'purchase_return' ? -qty : qty,
-          unit_price: unitCost,  // 單件成本
+          unit_price: unitCost,  // 單件成本（顯示用）
           shipping_fee: idx === 0 ? (order.type === 'purchase_return' ? -shippingFee : shippingFee) : 0,
-          amount: order.type === 'purchase_return' ? -amount : amount,
+          amount: order.type === 'purchase_return' ? -amount : amount,  // 使用 subtotal
           note: idx === 0 ? order.note : null,
         }
       })
@@ -419,6 +420,7 @@ export async function getCustomerReceivables(showSettled: boolean = false): Prom
 }
 
 // 取得所有供應商的應付狀態（用於列表）
+// 重要：使用 order_items.subtotal 計算應付金額
 export async function getSupplierPayables(showSettled: boolean = false): Promise<{
   supplier_name: string
   total_amount: number
@@ -430,9 +432,18 @@ export async function getSupplierPayables(showSettled: boolean = false): Promise
   
   const { data: orders } = await supabase
     .from('orders')
-    .select('supplier, type, cost')
+    .select('id, supplier, type, cost, shipping_fee')
     .in('type', ['purchase', 'purchase_return'])
     .not('supplier', 'is', null)
+  
+  // 取得所有 order_items
+  const orderIds = orders?.map(o => o.id) || []
+  const { data: orderItems } = orderIds.length > 0
+    ? await supabase
+        .from('order_items')
+        .select('order_id, subtotal')
+        .in('order_id', orderIds)
+    : { data: [] }
   
   const { data: payments } = await supabase
     .from('payments')
@@ -444,8 +455,20 @@ export async function getSupplierPayables(showSettled: boolean = false): Promise
     const name = o.supplier
     if (!name) return
     const current = suppliersMap.get(name) || { total: 0, paid: 0 }
-    const amount = o.cost || 0
-    current.total += o.type === 'purchase_return' ? -amount : amount
+    
+    // 優先從 order_items 計算金額
+    const itemsForOrder = orderItems?.filter(item => item.order_id === o.id) || []
+    let orderAmount: number
+    
+    if (itemsForOrder.length > 0) {
+      // 有 order_items，使用 subtotal 加總 + shipping_fee
+      orderAmount = itemsForOrder.reduce((s, item) => s + (item.subtotal || 0), 0) + (o.shipping_fee || 0)
+    } else {
+      // 無 order_items，使用 cost + shipping_fee
+      orderAmount = (o.cost || 0) + (o.shipping_fee || 0)
+    }
+    
+    current.total += o.type === 'purchase_return' ? -orderAmount : orderAmount
     suppliersMap.set(name, current)
   })
   
