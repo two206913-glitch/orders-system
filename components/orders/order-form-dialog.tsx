@@ -424,14 +424,15 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                     <FieldLabel>{isSaleType ? '售價 (NT$)' : '成本 (NT$)'}</FieldLabel>
                     <Input
                       type="number"
-                      step="0.01"
+                      step={isPurchaseType ? "0.000001" : "0.01"}
+                      inputMode="decimal"
                       min="0"
                       placeholder="0"
                       value={formData.unit_price ?? ''}
                       onChange={(e) => updateField('unit_price', e.target.value ? parseFloat(e.target.value) : null)}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      {isSaleType ? '每件商品的售價（可含小數）' : '每件商品的進貨成本（可含小數）'}
+                      {isSaleType ? '每件商品的售價（可含小數）' : '每件商品的進貨成本（可含6位小數）'}
                     </p>
                   </Field>
                 </div>
@@ -448,7 +449,8 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                   </FieldLabel>
                   <Input
                     type="number"
-                    step="0.01"
+                    step={isPurchaseType ? "0.000001" : "0.01"}
+                    inputMode="decimal"
                     min="0"
                     placeholder={isPurchaseType ? '輸入單件進貨成本' : '銷貨成本'}
                     value={formData.cost ?? ''}
@@ -456,7 +458,7 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
                     className={isPurchaseType ? 'border-primary/50' : ''}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    {isPurchaseType ? '每件商品的進貨成本（可含小數）' : '銷貨成本（可含小數）'}
+                    {isPurchaseType ? '每件商品的進貨成本（可含6位小數）' : '銷貨成本（可含小數）'}
                   </p>
                 </Field>
                 <Field>
