@@ -395,42 +395,6 @@ export async function updateOrder(id: string, updates: Partial<OrderInsert>, ite
   }
 }
 
-  // 處理商品項目（一律從 order_items 處理）
-  if (items && items.length > 0) {
-    // 還原原有商品項目的庫存
-    if (originalItems && originalItems.length > 0 && originalOrder) {
-      for (const item of originalItems) {
-        const oldDelta = getStockDelta(originalOrder.type, item.quantity)
-        await updateProductStock(supabase, item.product_name, item.product_variant, -oldDelta)
-      }
-    }
-
-    // 刪除原有商品項目
-    await supabase.from('order_items').delete().eq('order_id', id)
-
-    // 插入新的商品項目
-    const orderItems = items.map(item => ({
-      order_id: id,
-      product_id: item.product_id,
-      product_name: item.product_name,
-      product_variant: item.product_variant,
-      quantity: Number(item.quantity) || 0,
-      unit_price: Number(item.unit_price) || 0,
-      cost: Number(item.cost) || 0,
-      subtotal: Math.round(Number(item.subtotal)) || 0,
-    }))
-
-    await supabase.from('order_items').insert(orderItems)
-
-    // 套用新商品項目的庫存
-    const newType = updates.type ?? originalOrder?.type
-    for (const item of items) {
-      const newDelta = getStockDelta(newType, item.quantity)
-      await updateProductStock(supabase, item.product_name, item.product_variant, newDelta)
-    }
-  }
-}
-
 export async function deleteOrder(id: string) {
   const supabase = await createClient()
 
