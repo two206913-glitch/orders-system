@@ -228,10 +228,10 @@ export async function createOrder(order: OrderInsert, items?: OrderItem[]) {
       product_id: item.product_id,
       product_name: item.product_name,
       product_variant: item.product_variant,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      cost: item.cost,
-      subtotal: item.subtotal,
+      quantity: Number(item.quantity) || 0,
+      unit_price: Number(item.unit_price) || 0,
+      cost: Number(item.cost) || 0,
+      subtotal: Math.round(Number(item.subtotal)) || 0,
     }))
 
     const { error: itemsError } = await supabase
@@ -281,7 +281,7 @@ export async function updateOrder(id: string, updates: Partial<OrderInsert>, ite
     .eq('id', id)
     .single()
 
-  // 取得原訂單的商品項目（從 order_items 表）
+  // 取得原訂單的商品項目（��� order_items 表）
   const { data: originalItems } = await supabase
     .from('order_items')
     .select('*')
@@ -313,10 +313,10 @@ export async function updateOrder(id: string, updates: Partial<OrderInsert>, ite
       product_id: item.product_id,
       product_name: item.product_name,
       product_variant: item.product_variant,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      cost: item.cost,
-      subtotal: item.subtotal,
+      quantity: Number(item.quantity) || 0,
+      unit_price: Number(item.unit_price) || 0,
+      cost: Number(item.cost) || 0,
+      subtotal: Math.round(Number(item.subtotal)) || 0,
     }))
 
     await supabase.from('order_items').insert(orderItems)
