@@ -171,7 +171,7 @@ export function OrderItemsForm({ items, onChange, orderType, selectedSupplier }:
                     onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
                   />
                 </div>
-                {/* 銷貨顯示售價，進貨顯示單件成本（可輸入小數） */}
+                {/* 銷貨顯示售價，進貨顯示單件成本（進貨可輸入6位小數） */}
                 <div>
                   <label className="text-xs text-muted-foreground">
                     {isSale ? '售價' : '單件成本'}
@@ -179,7 +179,8 @@ export function OrderItemsForm({ items, onChange, orderType, selectedSupplier }:
                   <Input
                     type="number"
                     min={0}
-                    step="0.01"
+                    step={isPurchase ? "0.000001" : "0.01"}
+                    inputMode="decimal"
                     value={item.unit_price}
                     onChange={(e) => updateItem(index, 'unit_price', parseFloat(e.target.value) || 0)}
                   />
