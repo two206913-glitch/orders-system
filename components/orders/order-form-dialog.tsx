@@ -131,6 +131,9 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
         delete submitData.quantity
         delete submitData.unit_price
         delete submitData.spec
+        // 重要：先清除 cost，避免 formData.cost（小數）殘留
+        // orders.cost 必須是整數，稍後從 itemsToSave.subtotal 加總計算
+        delete submitData.cost
         
         // 一律傳入 orderItems（即使單商品模式也轉為 order_items）
         // 單商品小計也要四捨五入
@@ -152,8 +155,8 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
           
           // 總金額 = 商品總額 + 運費
           submitData.total_price = totalItemsAmount + shippingFee
-          // orders.cost = 總成本（整數），必須用 subtotal 加總
-          submitData.cost = totalItemsAmount
+          // orders.cost = 總成本（整數），必須用 subtotal 加總，不可用 formData.cost
+          submitData.cost = itemsToSave.reduce((sum, item) => sum + Math.round(Number(item.subtotal) || 0), 0)
           
           // 利潤計算（四捨五入為整數）- 只有銷貨才計算
           const orderType = formData.type || 'sale'
@@ -168,8 +171,8 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
             submitData.profit = null
           }
         } else {
-          // 沒有商品項目，清除成本
-          submitData.cost = null
+          // 沒有商品項目，設為 0（不可讓 formData.cost 進入）
+          submitData.cost = 0
         }
         
         console.log('[v0] handleSubmit - submitData:', JSON.stringify(submitData, null, 2))
