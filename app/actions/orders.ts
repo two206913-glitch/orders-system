@@ -209,47 +209,73 @@ async function updateProductStock(
 export async function createOrder(order: OrderInsert, items?: OrderItem[]) {
   const supabase = await createClient()
 
-  // 建立訂單主表（不再寫入 product_name, quantity, unit_price, spec）
-  const { data: newOrder, error } = await supabase
-    .from('orders')
-    .insert([order])
-    .select('id')
-    .single()
+  // Debug: 印出送出的 payload
+  console.log('[v0] createOrder - order payload:', JSON.stringify(order, null, 2))
+  console.log('[v0] createOrder - items payload:', JSON.stringify(items, null, 2))
 
-  if (error) {
-    console.error('Error creating order:', error)
-    throw new Error('Failed to create order')
-  }
+  try {
+    // 建立訂單主表（不再寫入 product_name, quantity, unit_price, spec）
+    const { data: newOrder, error } = await supabase
+      .from('orders')
+      .insert([order])
+      .select('id')
+      .single()
 
-  // 寫入 order_items 表（所有商品資料都存這裡）
-  if (items && items.length > 0) {
-    const orderItems = items.map(item => ({
-      order_id: newOrder.id,
-      product_id: item.product_id,
-      product_name: item.product_name,
-      product_variant: item.product_variant,
-      quantity: Number(item.quantity) || 0,
-      unit_price: Number(item.unit_price) || 0,
-      cost: Number(item.cost) || 0,
-      subtotal: Math.round(Number(item.subtotal)) || 0,
-    }))
-
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(orderItems)
-
-    if (itemsError) {
-      console.error('Error creating order items:', itemsError)
+    if (error) {
+      console.error('[v0] createOrder - orders insert error:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      })
+      throw new Error(`Failed to create order: ${error.message}`)
     }
 
-    // 更新每個商品的庫存
-    for (const item of items) {
-      const stockDelta = getStockDelta(order.type, item.quantity)
-      await updateProductStock(supabase, item.product_name, item.product_variant, stockDelta)
-    }
-  }
+    console.log('[v0] createOrder - order created:', newOrder.id)
 
-  return newOrder
+    // 寫入 order_items 表（所有商品資料都存這裡）
+    if (items && items.length > 0) {
+      const orderItems = items.map(item => ({
+        order_id: newOrder.id,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        product_variant: item.product_variant,
+        quantity: Number(item.quantity) || 0,
+        unit_price: Number(item.unit_price) || 0,
+        cost: Number(item.cost) || 0,
+        subtotal: Math.round(Number(item.subtotal)) || 0,
+      }))
+
+      console.log('[v0] createOrder - orderItems to insert:', JSON.stringify(orderItems, null, 2))
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems)
+
+      if (itemsError) {
+        console.error('[v0] createOrder - order_items insert error:', {
+          message: itemsError.message,
+          details: itemsError.details,
+          hint: itemsError.hint,
+          code: itemsError.code,
+        })
+        throw new Error(`Failed to create order items: ${itemsError.message}`)
+      }
+
+      console.log('[v0] createOrder - order_items inserted successfully')
+
+      // 更新每個商品的庫存
+      for (const item of items) {
+        const stockDelta = getStockDelta(order.type, item.quantity)
+        await updateProductStock(supabase, item.product_name, item.product_variant, stockDelta)
+      }
+    }
+
+    return newOrder
+  } catch (err) {
+    console.error('[v0] createOrder - unexpected error:', err)
+    throw err
+  }
 }
 
 // 取得訂單的商品項目
@@ -274,25 +300,100 @@ export async function getOrderItems(orderId: string): Promise<OrderItem[]> {
 export async function updateOrder(id: string, updates: Partial<OrderInsert>, items?: OrderItem[]) {
   const supabase = await createClient()
 
-  // 先取得原訂單資料以計算庫存差異
-  const { data: originalOrder } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('id', id)
-    .single()
+  // Debug: 印出送出的 payload
+  console.log('[v0] updateOrder - id:', id)
+  console.log('[v0] updateOrder - updates payload:', JSON.stringify(updates, null, 2))
+  console.log('[v0] updateOrder - items payload:', JSON.stringify(items, null, 2))
 
-  // 取得原訂單的商品項目（��� order_items 表）
-  const { data: originalItems } = await supabase
-    .from('order_items')
-    .select('*')
-    .eq('order_id', id)
+  try {
+    // 先取得原訂單資料以計算庫存差異
+    const { data: originalOrder } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-  const { error } = await supabase.from('orders').update(updates).eq('id', id)
+    // 取得原訂單的商品項目（從 order_items 表）
+    const { data: originalItems } = await supabase
+      .from('order_items')
+      .select('*')
+      .eq('order_id', id)
 
-  if (error) {
-    console.error('Error updating order:', error)
-    throw new Error('Failed to update order')
+    const { error } = await supabase.from('orders').update(updates).eq('id', id)
+
+    if (error) {
+      console.error('[v0] updateOrder - orders update error:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      })
+      throw new Error(`Failed to update order: ${error.message}`)
+    }
+
+    console.log('[v0] updateOrder - order updated successfully')
+
+    // 處理商品項目（一律從 order_items 處理）
+    if (items && items.length > 0) {
+      // 還原原有商品項目的庫存
+      if (originalItems && originalItems.length > 0 && originalOrder) {
+        for (const item of originalItems) {
+          const oldDelta = getStockDelta(originalOrder.type, item.quantity)
+          await updateProductStock(supabase, item.product_name, item.product_variant, -oldDelta)
+        }
+      }
+
+      // 刪除原有商品項目
+      const { error: deleteError } = await supabase.from('order_items').delete().eq('order_id', id)
+      if (deleteError) {
+        console.error('[v0] updateOrder - delete order_items error:', {
+          message: deleteError.message,
+          details: deleteError.details,
+          hint: deleteError.hint,
+          code: deleteError.code,
+        })
+      }
+
+      // 插入新的商品項目
+      const orderItems = items.map(item => ({
+        order_id: id,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        product_variant: item.product_variant,
+        quantity: Number(item.quantity) || 0,
+        unit_price: Number(item.unit_price) || 0,
+        cost: Number(item.cost) || 0,
+        subtotal: Math.round(Number(item.subtotal)) || 0,
+      }))
+
+      console.log('[v0] updateOrder - orderItems to insert:', JSON.stringify(orderItems, null, 2))
+
+      const { error: insertError } = await supabase.from('order_items').insert(orderItems)
+
+      if (insertError) {
+        console.error('[v0] updateOrder - insert order_items error:', {
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint,
+          code: insertError.code,
+        })
+        throw new Error(`Failed to insert order items: ${insertError.message}`)
+      }
+
+      console.log('[v0] updateOrder - order_items inserted successfully')
+
+      // 套用新商品項目的庫存
+      const newType = updates.type ?? originalOrder?.type
+      for (const item of items) {
+        const newDelta = getStockDelta(newType, item.quantity)
+        await updateProductStock(supabase, item.product_name, item.product_variant, newDelta)
+      }
+    }
+  } catch (err) {
+    console.error('[v0] updateOrder - unexpected error:', err)
+    throw err
   }
+}
 
   // 處理商品項目（一律從 order_items 處理）
   if (items && items.length > 0) {
