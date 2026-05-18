@@ -20,9 +20,10 @@ export async function getProducts(filters?: {
     query = query.eq('is_active', true)
   }
 
-  if (filters?.search) {
+  if (filters?.search && filters.search.trim() !== '') {
+    const keyword = filters.search.trim()
     query = query.or(
-      `name.ilike.%${filters.search}%,variant.ilike.%${filters.search}%,sku.ilike.%${filters.search}%`
+      `name.ilike.%${keyword}%,variant.ilike.%${keyword}%,sku.ilike.%${keyword}%,category.ilike.%${keyword}%,supplier.ilike.%${keyword}%`
     )
   }
 
