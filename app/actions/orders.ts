@@ -26,33 +26,94 @@ export async function getOrders(filters?: {
   if (filters?.search && filters.search.trim() !== "") {
     const keyword = filters.search.trim()
 
-    // 先搜尋 order_items 表中的商品名稱和規格
+    // 第一步：搜尋 order_items 表中的商品名稱和規格
     const { data: matchedItems } = await supabase
       .from("order_items")
       .select("order_id")
       .or(`product_name.ilike.%${keyword}%,product_variant.ilike.%${keyword}%`)
 
-    const orderIds = [
+    const orderIdsFromItems = [
       ...new Set(
         (matchedItems || [])
           .map((item) => item.order_id)
-          .filter(Boolean)
+          .filter((id): id is string => Boolean(id))
       ),
     ]
 
-    // 建立搜尋條件：客戶名稱、批次、供應商
-    const conditions = [
-      `customer_name.ilike.%${keyword}%`,
-      `batch.ilike.%${keyword}%`,
-      `supplier.ilike.%${keyword}%`,
-    ]
-
-    // 如果在 order_items 中有找到匹配的訂單，也加入搜尋條件
-    if (orderIds.length > 0) {
-      conditions.push(`id.in.(${orderIds.join(",")})`)
+    // 第二步：建立基本篩選條件（用於後續查詢）
+    const baseFilters = {
+      payment: filters?.payment,
+      shipping: filters?.shipping,
+      type: filters?.type,
     }
 
-    query = query.or(conditions.join(","))
+    // 第三步：查詢符合客戶/批次/供應商的訂單
+    let ordersQuery = supabase
+      .from('orders')
+      .select('*', { count: 'exact' })
+      .or(`customer_name.ilike.%${keyword}%,batch.ilike.%${keyword}%,supplier.ilike.%${keyword}%`)
+
+    if (baseFilters.payment) {
+      ordersQuery = ordersQuery.eq('payment_status', baseFilters.payment)
+    }
+    if (baseFilters.shipping) {
+      ordersQuery = ordersQuery.eq('shipping_status', baseFilters.shipping)
+    }
+    if (baseFilters.type) {
+      ordersQuery = ordersQuery.eq('type', baseFilters.type)
+    }
+
+    const { data: ordersFromFields } = await ordersQuery
+
+    // 第四步：如果 order_items 有找到匹配，用 .in() 方法查詢這些訂單
+    let ordersFromItems: typeof ordersFromFields = []
+    if (orderIdsFromItems.length > 0) {
+      let itemsOrdersQuery = supabase
+        .from('orders')
+        .select('*')
+        .in('id', orderIdsFromItems)
+
+      if (baseFilters.payment) {
+        itemsOrdersQuery = itemsOrdersQuery.eq('payment_status', baseFilters.payment)
+      }
+      if (baseFilters.shipping) {
+        itemsOrdersQuery = itemsOrdersQuery.eq('shipping_status', baseFilters.shipping)
+      }
+      if (baseFilters.type) {
+        itemsOrdersQuery = itemsOrdersQuery.eq('type', baseFilters.type)
+      }
+
+      const { data } = await itemsOrdersQuery
+      ordersFromItems = data || []
+    }
+
+    // 第五步：合併兩邊結果並去重
+    const allOrders = [...(ordersFromFields || []), ...ordersFromItems]
+    const uniqueOrdersMap = new Map<string, typeof allOrders[0]>()
+    for (const order of allOrders) {
+      if (order.id && !uniqueOrdersMap.has(order.id)) {
+        uniqueOrdersMap.set(order.id, order)
+      }
+    }
+    let mergedOrders = Array.from(uniqueOrdersMap.values())
+
+    // 第六步：排序
+    const sortBy = filters?.sortBy || 'created_at'
+    const sortOrder = filters?.sortOrder || 'desc'
+    mergedOrders.sort((a, b) => {
+      const aVal = a[sortBy as keyof typeof a]
+      const bVal = b[sortBy as keyof typeof b]
+      if (aVal === null || aVal === undefined) return 1
+      if (bVal === null || bVal === undefined) return -1
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1
+      return 0
+    })
+
+    // 第七步：分頁
+    const paginatedOrders = mergedOrders.slice(offset, offset + pageSize)
+
+    return { orders: paginatedOrders, total: mergedOrders.length }
   }
 
   if (filters?.payment) {
