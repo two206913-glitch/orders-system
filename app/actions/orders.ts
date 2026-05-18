@@ -23,11 +23,36 @@ export async function getOrders(filters?: {
     .from('orders')
     .select('*', { count: 'exact' })
 
-  if (filters?.search) {
-    // 搜尋客戶、批次、供應商（不再搜尋 orders.product_name）
-    query = query.or(
-      `customer_name.ilike.%${filters.search}%,batch.ilike.%${filters.search}%,supplier.ilike.%${filters.search}%`
-    )
+  if (filters?.search && filters.search.trim() !== "") {
+    const keyword = filters.search.trim()
+
+    // 先搜尋 order_items 表中的商品名稱和規格
+    const { data: matchedItems } = await supabase
+      .from("order_items")
+      .select("order_id")
+      .or(`product_name.ilike.%${keyword}%,product_variant.ilike.%${keyword}%`)
+
+    const orderIds = [
+      ...new Set(
+        (matchedItems || [])
+          .map((item) => item.order_id)
+          .filter(Boolean)
+      ),
+    ]
+
+    // 建立搜尋條件：客戶名稱、批次、供應商
+    const conditions = [
+      `customer_name.ilike.%${keyword}%`,
+      `batch.ilike.%${keyword}%`,
+      `supplier.ilike.%${keyword}%`,
+    ]
+
+    // 如果在 order_items 中有找到匹配的訂單，也加入搜尋條件
+    if (orderIds.length > 0) {
+      conditions.push(`id.in.(${orderIds.join(",")})`)
+    }
+
+    query = query.or(conditions.join(","))
   }
 
   if (filters?.payment) {
