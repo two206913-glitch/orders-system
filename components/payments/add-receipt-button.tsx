@@ -39,7 +39,9 @@ interface PartyBalance {
 interface UnsettledOrder {
   id: string
   date: string
+  type: string
   total_price: number
+  display_amount: number  // sale 為正，sale_return 為負
   shipping_fee: number
   note: string | null
   items: {
@@ -126,10 +128,10 @@ export function AddReceiptButtonClient() {
     })
   }
 
-  // 計算已勾選訂單的總金額
+  // 計算已勾選訂單的總金額（sale 為正，sale_return 為負）
   const selectedTotal = unsettledOrders
     .filter(o => selectedOrderIds.has(o.id))
-    .reduce((sum, o) => sum + (o.total_price || 0), 0)
+    .reduce((sum, o) => sum + (o.display_amount || 0), 0)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -320,11 +322,18 @@ export function AddReceiptButtonClient() {
                           />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-sm text-muted-foreground">
-                                {formatDate(order.date)}
-                              </span>
-                              <span className="font-medium">
-                                {formatCurrency(order.total_price)}
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground">
+                                  {formatDate(order.date)}
+                                </span>
+                                {order.type === 'sale_return' && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
+                                    銷退
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`font-medium ${order.display_amount < 0 ? 'text-destructive' : ''}`}>
+                                {formatCurrency(order.display_amount)}
                               </span>
                             </div>
                             <div className="text-sm text-muted-foreground truncate">
@@ -346,7 +355,7 @@ export function AddReceiptButtonClient() {
                     </div>
                   ) : (
                     <div className="text-sm text-muted-foreground text-center py-4 border rounded-lg">
-                      {noOrdersMessage || '此客戶沒有未結清的銷售訂單'}
+                      {noOrdersMessage || '此客戶沒有未結清的訂單'}
                     </div>
                   )}
 
