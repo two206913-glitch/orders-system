@@ -79,14 +79,15 @@ export async function getCustomerInvoice(
 ): Promise<CustomerInvoice> {
   const supabase = await createClient()
   
-  // 取得該客戶在日期區間內的銷貨和銷退訂單
+  // 取得該客戶在日期區間內的銷貨和銷退訂單（排除已結清）
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, date, type, product_name, spec, quantity, unit_price, shipping_fee, total_price, note')
+    .select('id, date, type, product_name, spec, quantity, unit_price, shipping_fee, total_price, note, is_settled')
     .eq('customer_name', customerName)
     .in('type', ['sale', 'sale_return'])
     .gte('date', dateFrom)
     .lte('date', dateTo)
+    .or('is_settled.is.null,is_settled.eq.false')
     .order('date', { ascending: true })
   
   // 取得這些訂單的 order_items（包含 cost 欄位用於利潤計算）
@@ -104,12 +105,13 @@ export async function getCustomerInvoice(
     .select('amount')
     .eq('customer_name', customerName)
   
-  // 取得該客戶的所有訂單（用於計算總應收，包含 order_items）
+  // 取得該客戶的所有未結清訂單（用於計算總應收，包含 order_items）
   const { data: allOrders } = await supabase
     .from('orders')
     .select('id, type, total_price, shipping_fee')
     .eq('customer_name', customerName)
     .in('type', ['sale', 'sale_return'])
+    .or('is_settled.is.null,is_settled.eq.false')
   
   // 取得所有訂單的 order_items
   const allOrderIds = allOrders?.map(o => o.id) || []

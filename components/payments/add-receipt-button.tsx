@@ -20,11 +20,12 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Card, CardContent } from '@/components/ui/card'
-import { Plus, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { formatCurrency } from '@/lib/locale'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Plus, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { formatCurrency, formatDate } from '@/lib/locale'
 import { PAYMENT_METHODS } from '@/lib/types/order'
 import { PAYMENT_METHOD_LABELS } from '@/lib/locale'
-import { createPayment } from '@/app/actions/payments'
+import { createReceiptWithSettlement } from '@/app/actions/payments'
 import { toast } from 'sonner'
 
 interface PartyBalance {
@@ -35,6 +36,19 @@ interface PartyBalance {
   is_settled: boolean
 }
 
+interface UnsettledOrder {
+  id: string
+  date: string
+  total_price: number
+  shipping_fee: number
+  note: string | null
+  items: {
+    product_name: string
+    product_variant: string | null
+    quantity: number
+  }[]
+}
+
 // 收款按鈕（客戶端）
 export function AddReceiptButtonClient() {
   const router = useRouter()
@@ -42,6 +56,8 @@ export function AddReceiptButtonClient() {
   const [parties, setParties] = useState<PartyBalance[]>([])
   const [selectedParty, setSelectedParty] = useState<string>('')
   const [partyInfo, setPartyInfo] = useState<PartyBalance | null>(null)
+  const [unsettledOrders, setUnsettledOrders] = useState<UnsettledOrder[]>([])
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
   
   const [formData, setFormData] = useState({
@@ -64,7 +80,7 @@ export function AddReceiptButtonClient() {
     setParties(data.receivables || [])
   }
 
-  // 選擇客戶時更新資訊
+  // 選擇客戶時載入該客戶的未結清訂單
   useEffect(() => {
     const party = parties.find(p => p.name === selectedParty)
     if (party) {
@@ -73,10 +89,43 @@ export function AddReceiptButtonClient() {
         ...prev,
         amount: party.pending_amount > 0 ? party.pending_amount : 0
       }))
+      // 載入未結清訂單
+      loadUnsettledOrders(selectedParty)
     } else {
       setPartyInfo(null)
+      setUnsettledOrders([])
+      setSelectedOrderIds(new Set())
     }
   }, [selectedParty, parties])
+
+  const loadUnsettledOrders = async (customerName: string) => {
+    try {
+      const res = await fetch(`/api/unsettled-orders?customer=${encodeURIComponent(customerName)}`)
+      const data = await res.json()
+      setUnsettledOrders(data.orders || [])
+      setSelectedOrderIds(new Set())
+    } catch (error) {
+      console.error('Failed to load unsettled orders:', error)
+      setUnsettledOrders([])
+    }
+  }
+
+  const toggleOrderSelection = (orderId: string) => {
+    setSelectedOrderIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(orderId)) {
+        newSet.delete(orderId)
+      } else {
+        newSet.add(orderId)
+      }
+      return newSet
+    })
+  }
+
+  // 計算已勾選訂單的總金額
+  const selectedTotal = unsettledOrders
+    .filter(o => selectedOrderIds.has(o.id))
+    .reduce((sum, o) => sum + (o.total_price || 0), 0)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -91,24 +140,24 @@ export function AddReceiptButtonClient() {
       return
     }
     
-    if (partyInfo && formData.amount > partyInfo.pending_amount) {
-      toast.error(`金額不可超過未收餘額 ${formatCurrency(partyInfo.pending_amount)}`)
-      return
-    }
-    
     startTransition(async () => {
       try {
-        await createPayment({
-          type: 'receipt',
-          party_name: selectedParty,
+        await createReceiptWithSettlement({
+          customer_name: selectedParty,
           amount: formData.amount,
           payment_method: formData.payment_method || null,
           date: formData.date,
           note: formData.note || null,
+          settle_order_ids: Array.from(selectedOrderIds),
         })
-        toast.success('收款已記錄')
+        toast.success(
+          selectedOrderIds.size > 0 
+            ? `收款已新增，${selectedOrderIds.size} 筆訂單已標記結清`
+            : '收款已新增'
+        )
         setOpen(false)
         setSelectedParty('')
+        setSelectedOrderIds(new Set())
         setFormData({
           amount: 0,
           payment_method: '',
@@ -117,8 +166,8 @@ export function AddReceiptButtonClient() {
         })
         router.refresh()
       } catch (error) {
-        console.error('Failed to create payment:', error)
-        toast.error('收款記錄失敗')
+        console.error('Failed to create receipt:', error)
+        toast.error(error instanceof Error ? error.message : '收款記錄失敗')
       }
     })
   }
@@ -130,7 +179,7 @@ export function AddReceiptButtonClient() {
         新增收款
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>新增收款</DialogTitle>
           </DialogHeader>
@@ -187,6 +236,61 @@ export function AddReceiptButtonClient() {
                 </CardContent>
               </Card>
             )}
+
+            {/* 未結清訂單列表 */}
+            {selectedParty && unsettledOrders.length > 0 && (
+              <div className="space-y-2">
+                <FieldLabel>勾選要結清的訂單</FieldLabel>
+                <div className="border rounded-lg divide-y max-h-[200px] overflow-y-auto">
+                  {unsettledOrders.map(order => (
+                    <label
+                      key={order.id}
+                      className="flex items-start gap-3 p-3 hover:bg-muted/50 cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={selectedOrderIds.has(order.id)}
+                        onCheckedChange={() => toggleOrderSelection(order.id)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm text-muted-foreground">
+                            {formatDate(order.date)}
+                          </span>
+                          <span className="font-medium">
+                            {formatCurrency(order.total_price)}
+                          </span>
+                        </div>
+                        <div className="text-sm text-muted-foreground truncate">
+                          {order.items.length > 0 
+                            ? order.items.map(item => 
+                                `${item.product_name}${item.product_variant ? ` (${item.product_variant})` : ''} x${item.quantity}`
+                              ).join('、')
+                            : '(無商品明細)'
+                          }
+                        </div>
+                        {order.note && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            備註：{order.note}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                {selectedOrderIds.size > 0 && (
+                  <div className="text-sm font-medium text-right">
+                    已勾選結清金額：{formatCurrency(selectedTotal)}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedParty && unsettledOrders.length === 0 && (
+              <div className="text-sm text-muted-foreground text-center py-4 border rounded-lg">
+                此客戶沒有未結清的銷售訂單
+              </div>
+            )}
             
             <div className="grid grid-cols-2 gap-4">
               <Field>
@@ -197,7 +301,6 @@ export function AddReceiptButtonClient() {
                   value={formData.amount || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, amount: parseInt(e.target.value) || 0 }))}
                   min={1}
-                  max={partyInfo?.pending_amount}
                   required
                 />
               </Field>
@@ -210,6 +313,14 @@ export function AddReceiptButtonClient() {
                 />
               </Field>
             </div>
+
+            {/* 收款金額小於勾選金額的提醒 */}
+            {selectedOrderIds.size > 0 && formData.amount < selectedTotal && (
+              <div className="flex items-center gap-2 text-warning text-sm bg-warning/10 p-3 rounded-lg">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <span>提醒：收款金額小於勾選結清金額，請確認是否仍要結清。</span>
+              </div>
+            )}
             
             <Field>
               <FieldLabel>付款方式</FieldLabel>
