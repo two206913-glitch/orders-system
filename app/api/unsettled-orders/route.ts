@@ -5,11 +5,24 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const customerName = searchParams.get('customer')
   
+  console.log('[v0] unsettled-orders API - customerName:', customerName)
+  
   if (!customerName) {
     return NextResponse.json({ orders: [] })
   }
   
   const supabase = await createClient()
+  
+  // 先查詢該客戶的所有銷售訂單（不限制 is_settled），用於 debug
+  const { data: allSaleOrders, error: debugError } = await supabase
+    .from('orders')
+    .select('id, date, type, is_settled, total_price, customer_name')
+    .eq('customer_name', customerName)
+    .eq('type', 'sale')
+    .limit(10)
+  
+  console.log('[v0] unsettled-orders API - allSaleOrders:', JSON.stringify(allSaleOrders, null, 2))
+  console.log('[v0] unsettled-orders API - debugError:', debugError)
   
   // 取得該客戶的未結清銷售訂單
   const { data: orders, error } = await supabase
@@ -19,6 +32,9 @@ export async function GET(request: NextRequest) {
     .eq('type', 'sale')
     .or('is_settled.is.null,is_settled.eq.false')
     .order('date', { ascending: false })
+  
+  console.log('[v0] unsettled-orders API - filtered orders:', JSON.stringify(orders, null, 2))
+  console.log('[v0] unsettled-orders API - error:', error)
   
   if (error) {
     console.error('Error fetching unsettled orders:', error)
