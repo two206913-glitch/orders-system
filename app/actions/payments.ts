@@ -120,8 +120,9 @@ export async function createReceiptWithSettlement(data: {
     throw new Error(`收款記錄失敗: ${receiptError.message}`)
   }
 
-  // 2. 如果有勾選訂單，將這些訂單標記為已結清
+  // 2. 如果有勾選訂單，將這些訂單標記為已結清，並記錄關聯
   if (data.settle_order_ids.length > 0) {
+    // 更新訂單為已結清
     const { error: updateError } = await supabase
       .from('orders')
       .update({
@@ -133,6 +134,21 @@ export async function createReceiptWithSettlement(data: {
     if (updateError) {
       console.error('Error settling orders:', updateError)
       throw new Error(`訂單結清失敗: ${updateError.message}`)
+    }
+
+    // 新增 receipt_settlements 關聯記錄
+    const settlementRecords = data.settle_order_ids.map(orderId => ({
+      receipt_id: receipt.id,
+      order_id: orderId,
+    }))
+
+    const { error: settlementError } = await supabase
+      .from('receipt_settlements')
+      .insert(settlementRecords)
+
+    if (settlementError) {
+      console.error('Error creating settlement records:', settlementError)
+      // 不拋出錯誤，因為主要功能已完成
     }
   }
 
