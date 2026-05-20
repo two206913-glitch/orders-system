@@ -248,6 +248,26 @@ export async function deletePayment(id: string, type: 'receipt' | 'payment') {
     .eq('id', id)
     .single()
 
+  // 如果是收款，先查詢該收款結清過的訂單（從 receipt_settlements 表）
+  if (type === 'receipt') {
+    const { data: settlements } = await supabase
+      .from('receipt_settlements')
+      .select('order_id')
+      .eq('receipt_id', id)
+
+    // 還原這些訂單的結清狀態
+    if (settlements && settlements.length > 0) {
+      const orderIds = settlements.map(s => s.order_id)
+      await supabase
+        .from('orders')
+        .update({
+          is_settled: false,
+          settled_at: null,
+        })
+        .in('id', orderIds)
+    }
+  }
+
   const { error } = await supabase
     .from(tableName)
     .delete()

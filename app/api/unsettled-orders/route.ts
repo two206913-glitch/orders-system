@@ -11,12 +11,12 @@ export async function GET(request: NextRequest) {
   
   const supabase = await createClient()
   
-  // 取得該客戶的未結清銷售訂單（使用 ilike 模糊搜尋客戶名稱）
+  // 取得該客戶的未結清訂單（包含 sale 和 sale_return）
   const { data: orders, error } = await supabase
     .from('orders')
-    .select('id, date, total_price, shipping_fee, note, customer_name')
+    .select('id, date, type, total_price, shipping_fee, note, customer_name')
     .ilike('customer_name', `%${customerName}%`)
-    .eq('type', 'sale')
+    .in('type', ['sale', 'sale_return'])
     .or('is_settled.is.null,is_settled.eq.false')
     .order('date', { ascending: false })
   
@@ -31,12 +31,12 @@ export async function GET(request: NextRequest) {
       .from('orders')
       .select('id')
       .ilike('customer_name', `%${customerName}%`)
-      .eq('type', 'sale')
+      .in('type', ['sale', 'sale_return'])
       .eq('is_settled', true)
       .limit(1)
     
     if (settledOrders && settledOrders.length > 0) {
-      return NextResponse.json({ orders: [], message: '此客戶銷售訂單皆已結清' })
+      return NextResponse.json({ orders: [], message: '此客戶訂單皆已結清' })
     } else {
       return NextResponse.json({ orders: [], message: '找不到此客戶的銷售訂單' })
     }
@@ -49,9 +49,11 @@ export async function GET(request: NextRequest) {
     .select('order_id, product_name, product_variant, quantity')
     .in('order_id', orderIds)
   
-  // 組合訂單與商品明細
+  // 組合訂單與商品明細，sale_return 的金額轉為負數
   const ordersWithItems = orders.map(order => ({
     ...order,
+    // sale_return 金額顯示為負數
+    display_amount: order.type === 'sale_return' ? -(order.total_price || 0) : (order.total_price || 0),
     items: (orderItems || [])
       .filter(item => item.order_id === order.id)
       .map(item => ({
