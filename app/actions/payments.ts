@@ -91,6 +91,57 @@ export async function createPayment(payment: PaymentInsert) {
   return data
 }
 
+// 新增收款並結清指定訂單
+export async function createReceiptWithSettlement(data: {
+  customer_name: string
+  amount: number
+  payment_method: string | null
+  date: string
+  note: string | null
+  settle_order_ids: string[]
+}) {
+  const supabase = await createClient()
+
+  // 1. 新增收款紀錄到 receipts 表
+  const { data: receipt, error: receiptError } = await supabase
+    .from('receipts')
+    .insert({
+      customer_name: data.customer_name,
+      amount: data.amount,
+      date: data.date,
+      payment_method: data.payment_method,
+      note: data.note,
+    })
+    .select()
+    .single()
+
+  if (receiptError) {
+    console.error('Error creating receipt:', receiptError)
+    throw new Error(`收款記錄失敗: ${receiptError.message}`)
+  }
+
+  // 2. 如果有勾選訂單，將這些訂單標記為已結清
+  if (data.settle_order_ids.length > 0) {
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({
+        is_settled: true,
+        settled_at: new Date().toISOString(),
+      })
+      .in('id', data.settle_order_ids)
+
+    if (updateError) {
+      console.error('Error settling orders:', updateError)
+      throw new Error(`訂單結清失敗: ${updateError.message}`)
+    }
+  }
+
+  // 3. 更新訂單付款狀態
+  await updateOrderPaymentStatus(supabase, data.customer_name, 'receipt')
+
+  return receipt
+}
+
 // 更新訂單付款狀態：根據收付款紀錄與訂單金額比對
 async function updateOrderPaymentStatus(
   supabase: Awaited<ReturnType<typeof createClient>>,
