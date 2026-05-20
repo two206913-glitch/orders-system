@@ -179,179 +179,186 @@ export function AddReceiptButtonClient() {
         新增收款
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
             <DialogTitle>新增收款</DialogTitle>
           </DialogHeader>
           
-          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-            <Field>
-              <FieldLabel>選擇客戶</FieldLabel>
-              <Select value={selectedParty} onValueChange={setSelectedParty}>
-                <SelectTrigger>
-                  <SelectValue placeholder="選擇客戶" />
-                </SelectTrigger>
-                <SelectContent>
-                  {parties.length === 0 ? (
-                    <SelectItem value="_none" disabled>無待收款客戶</SelectItem>
-                  ) : (
-                    parties.map(p => (
-                      <SelectItem key={p.name} value={p.name}>
-                        {p.name} - 未收 {formatCurrency(p.pending_amount)}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </Field>
-            
-            {/* 客戶應收資訊 */}
-            {partyInfo && (
-              <Card className={partyInfo.is_settled ? 'bg-success/5 border-success/30' : 'bg-warning/5 border-warning/30'}>
-                <CardContent className="pt-4 pb-3">
-                  <div className="flex items-center gap-2 mb-3">
-                    {partyInfo.is_settled ? (
-                      <CheckCircle2 className="h-4 w-4 text-success" />
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+            {/* 上方表單區 */}
+            <div className="px-6 py-4 space-y-4 flex-shrink-0">
+              <Field>
+                <FieldLabel>選擇客戶</FieldLabel>
+                <Select value={selectedParty} onValueChange={setSelectedParty}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="選擇客戶" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {parties.length === 0 ? (
+                      <SelectItem value="_none" disabled>無待收款客戶</SelectItem>
                     ) : (
-                      <AlertCircle className="h-4 w-4 text-warning" />
+                      parties.map(p => (
+                        <SelectItem key={p.name} value={p.name}>
+                          {p.name} - 未收 {formatCurrency(p.pending_amount)}
+                        </SelectItem>
+                      ))
                     )}
-                    <span className="font-medium">{partyInfo.name}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">應收金額</p>
-                      <p className="font-semibold">{formatCurrency(partyInfo.total_amount)}</p>
+                  </SelectContent>
+                </Select>
+              </Field>
+              
+              {/* 客戶應收資訊 */}
+              {partyInfo && (
+                <Card className={partyInfo.is_settled ? 'bg-success/5 border-success/30' : 'bg-warning/5 border-warning/30'}>
+                  <CardContent className="pt-4 pb-3">
+                    <div className="flex items-center gap-2 mb-3">
+                      {partyInfo.is_settled ? (
+                        <CheckCircle2 className="h-4 w-4 text-success" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-warning" />
+                      )}
+                      <span className="font-medium">{partyInfo.name}</span>
                     </div>
-                    <div>
-                      <p className="text-muted-foreground">已收金額</p>
-                      <p className="font-semibold text-success">{formatCurrency(partyInfo.received_amount)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">未收金額</p>
-                      <p className={`font-semibold ${partyInfo.pending_amount > 0 ? 'text-warning' : 'text-success'}`}>
-                        {formatCurrency(partyInfo.pending_amount)}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* 未結清訂單列表 */}
-            {selectedParty && unsettledOrders.length > 0 && (
-              <div className="space-y-2">
-                <FieldLabel>勾選要結清的訂單</FieldLabel>
-                <div className="border rounded-lg divide-y max-h-[200px] overflow-y-auto">
-                  {unsettledOrders.map(order => (
-                    <label
-                      key={order.id}
-                      className="flex items-start gap-3 p-3 hover:bg-muted/50 cursor-pointer"
-                    >
-                      <Checkbox
-                        checked={selectedOrderIds.has(order.id)}
-                        onCheckedChange={() => toggleOrderSelection(order.id)}
-                        className="mt-1"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm text-muted-foreground">
-                            {formatDate(order.date)}
-                          </span>
-                          <span className="font-medium">
-                            {formatCurrency(order.total_price)}
-                          </span>
-                        </div>
-                        <div className="text-sm text-muted-foreground truncate">
-                          {order.items.length > 0 
-                            ? order.items.map(item => 
-                                `${item.product_name}${item.product_variant ? ` (${item.product_variant})` : ''} x${item.quantity}`
-                              ).join('、')
-                            : '(無商品明細)'
-                          }
-                        </div>
-                        {order.note && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            備註：{order.note}
-                          </div>
-                        )}
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">應收金額</p>
+                        <p className="font-semibold">{formatCurrency(partyInfo.total_amount)}</p>
                       </div>
-                    </label>
-                  ))}
+                      <div>
+                        <p className="text-muted-foreground">已收金額</p>
+                        <p className="font-semibold text-success">{formatCurrency(partyInfo.received_amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">未收金額</p>
+                        <p className={`font-semibold ${partyInfo.pending_amount > 0 ? 'text-warning' : 'text-success'}`}>
+                          {formatCurrency(partyInfo.pending_amount)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel>收款金額 (NT$)</FieldLabel>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={formData.amount || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, amount: parseInt(e.target.value) || 0 }))}
+                    min={1}
+                    required
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>日期</FieldLabel>
+                  <Input
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                  />
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel>付款方式</FieldLabel>
+                  <Select 
+                    value={formData.payment_method} 
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, payment_method: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="選擇付款方式" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_METHODS.map((method) => (
+                        <SelectItem key={method} value={method}>
+                          {PAYMENT_METHOD_LABELS[method]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel>備註</FieldLabel>
+                  <Input
+                    placeholder="輸入備註..."
+                    value={formData.note}
+                    onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
+                  />
+                </Field>
+              </div>
+            </div>
+
+            {/* 可滾動的訂單列表區 */}
+            {selectedParty && (
+              <div className="px-6 flex-1 min-h-0 flex flex-col">
+                <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                  <FieldLabel className="mb-0">勾選要結清的訂單</FieldLabel>
+                  {selectedOrderIds.size > 0 && (
+                    <span className="text-sm font-medium">
+                      已勾選結清金額：{formatCurrency(selectedTotal)}
+                    </span>
+                  )}
                 </div>
-                {selectedOrderIds.size > 0 && (
-                  <div className="text-sm font-medium text-right">
-                    已勾選結清金額：{formatCurrency(selectedTotal)}
+                
+                {unsettledOrders.length > 0 ? (
+                  <div className="border rounded-lg divide-y h-64 max-h-80 overflow-y-auto flex-shrink-0">
+                    {unsettledOrders.map(order => (
+                      <label
+                        key={order.id}
+                        className="flex items-start gap-3 p-3 hover:bg-muted/50 cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={selectedOrderIds.has(order.id)}
+                          onCheckedChange={() => toggleOrderSelection(order.id)}
+                          className="mt-1"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm text-muted-foreground">
+                              {formatDate(order.date)}
+                            </span>
+                            <span className="font-medium">
+                              {formatCurrency(order.total_price)}
+                            </span>
+                          </div>
+                          <div className="text-sm text-muted-foreground truncate">
+                            {order.items.length > 0 
+                              ? order.items.map(item => 
+                                  `${item.product_name}${item.product_variant ? ` (${item.product_variant})` : ''} x${item.quantity}`
+                                ).join('、')
+                              : '(無商品明細)'
+                            }
+                          </div>
+                          {order.note && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              備註：{order.note}
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground text-center py-4 border rounded-lg">
+                    此客戶沒有未結清的銷售訂單
+                  </div>
+                )}
+
+                {/* 收款金額小於勾選金額的提醒 */}
+                {selectedOrderIds.size > 0 && formData.amount < selectedTotal && (
+                  <div className="flex items-center gap-2 text-warning text-sm bg-warning/10 p-3 rounded-lg mt-3">
+                    <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                    <span>提醒：收款金額小於勾選結清金額，請確認是否仍要結清。</span>
                   </div>
                 )}
               </div>
             )}
-
-            {selectedParty && unsettledOrders.length === 0 && (
-              <div className="text-sm text-muted-foreground text-center py-4 border rounded-lg">
-                此客戶沒有未結清的銷售訂單
-              </div>
-            )}
             
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>收款金額 (NT$)</FieldLabel>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={formData.amount || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, amount: parseInt(e.target.value) || 0 }))}
-                  min={1}
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel>日期</FieldLabel>
-                <Input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                />
-              </Field>
-            </div>
-
-            {/* 收款金額小於勾選金額的提醒 */}
-            {selectedOrderIds.size > 0 && formData.amount < selectedTotal && (
-              <div className="flex items-center gap-2 text-warning text-sm bg-warning/10 p-3 rounded-lg">
-                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                <span>提醒：收款金額小於勾選結清金額，請確認是否仍要結清。</span>
-              </div>
-            )}
-            
-            <Field>
-              <FieldLabel>付款方式</FieldLabel>
-              <Select 
-                value={formData.payment_method} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, payment_method: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="選擇付款方式" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_METHODS.map((method) => (
-                    <SelectItem key={method} value={method}>
-                      {PAYMENT_METHOD_LABELS[method]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            
-            <Field>
-              <FieldLabel>備註</FieldLabel>
-              <Textarea
-                placeholder="輸入備註..."
-                value={formData.note}
-                onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
-                rows={2}
-              />
-            </Field>
-            
-            <div className="flex justify-end gap-3 pt-4">
+            {/* 底部按鈕區 */}
+            <div className="flex justify-end gap-3 px-6 py-4 border-t mt-auto flex-shrink-0">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 取消
               </Button>
