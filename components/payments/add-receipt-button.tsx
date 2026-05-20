@@ -58,6 +58,7 @@ export function AddReceiptButtonClient() {
   const [partyInfo, setPartyInfo] = useState<PartyBalance | null>(null)
   const [unsettledOrders, setUnsettledOrders] = useState<UnsettledOrder[]>([])
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set())
+  const [noOrdersMessage, setNoOrdersMessage] = useState<string>('')
   const [isPending, startTransition] = useTransition()
   
   const [formData, setFormData] = useState({
@@ -95,6 +96,7 @@ export function AddReceiptButtonClient() {
       setPartyInfo(null)
       setUnsettledOrders([])
       setSelectedOrderIds(new Set())
+      setNoOrdersMessage('')
     }
   }, [selectedParty, parties])
 
@@ -104,9 +106,11 @@ export function AddReceiptButtonClient() {
       const data = await res.json()
       setUnsettledOrders(data.orders || [])
       setSelectedOrderIds(new Set())
+      setNoOrdersMessage(data.message || '')
     } catch (error) {
       console.error('Failed to load unsettled orders:', error)
       setUnsettledOrders([])
+      setNoOrdersMessage('載入訂單時發生錯誤')
     }
   }
 
@@ -343,7 +347,7 @@ export function AddReceiptButtonClient() {
                   </div>
                 ) : (
                   <div className="text-sm text-muted-foreground text-center py-4 border rounded-lg">
-                    此客戶沒有未結清的銷售訂單
+                    {noOrdersMessage || '此客戶沒有未結清的銷售訂單'}
                   </div>
                 )}
 
