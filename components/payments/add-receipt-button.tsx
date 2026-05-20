@@ -179,7 +179,7 @@ export function AddReceiptButtonClient() {
         新增收款
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
             <DialogTitle>新增收款</DialogTitle>
           </DialogHeader>
@@ -193,13 +193,13 @@ export function AddReceiptButtonClient() {
                   <SelectTrigger>
                     <SelectValue placeholder="選擇客戶" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="w-[var(--radix-select-trigger-width)] max-h-60 overflow-y-auto z-[9999]">
                     {parties.length === 0 ? (
                       <SelectItem value="_none" disabled>無待收款客戶</SelectItem>
                     ) : (
                       parties.map(p => (
-                        <SelectItem key={p.name} value={p.name}>
-                          {p.name} - 未收 {formatCurrency(p.pending_amount)}
+                        <SelectItem key={p.name} value={p.name} className="truncate">
+                          <span className="truncate">{p.name} - 未收 {formatCurrency(p.pending_amount)}</span>
                         </SelectItem>
                       ))
                     )}
