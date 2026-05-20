@@ -183,14 +183,14 @@ export function AddReceiptButtonClient() {
         新增收款
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
+        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b">
             <DialogTitle>新增收款</DialogTitle>
           </DialogHeader>
           
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-            {/* 上方表單區 */}
-            <div className="px-6 py-4 space-y-4 flex-shrink-0">
+            {/* 可捲動的內容區 */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
               <Field>
                 <FieldLabel>選擇客戶</FieldLabel>
                 <Select value={selectedParty} onValueChange={setSelectedParty}>
@@ -293,76 +293,76 @@ export function AddReceiptButtonClient() {
                   />
                 </Field>
               </div>
-            </div>
 
-            {/* 可滾動的訂單列表區 */}
-            {selectedParty && (
-              <div className="px-6 flex-1 min-h-0 flex flex-col">
-                <div className="flex items-center justify-between mb-2 flex-shrink-0">
-                  <FieldLabel className="mb-0">勾選要結清的訂單</FieldLabel>
-                  {selectedOrderIds.size > 0 && (
-                    <span className="text-sm font-medium">
-                      已勾選結清金額：{formatCurrency(selectedTotal)}
-                    </span>
+              {/* 勾選要結清的訂單 */}
+              {selectedParty && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <FieldLabel className="mb-0">勾選要結清的訂單</FieldLabel>
+                    {selectedOrderIds.size > 0 && (
+                      <span className="text-sm font-medium">
+                        已勾選結清金額：{formatCurrency(selectedTotal)}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {unsettledOrders.length > 0 ? (
+                    <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
+                      {unsettledOrders.map(order => (
+                        <label
+                          key={order.id}
+                          className="flex items-start gap-3 p-3 hover:bg-muted/50 cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={selectedOrderIds.has(order.id)}
+                            onCheckedChange={() => toggleOrderSelection(order.id)}
+                            className="mt-1"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm text-muted-foreground">
+                                {formatDate(order.date)}
+                              </span>
+                              <span className="font-medium">
+                                {formatCurrency(order.total_price)}
+                              </span>
+                            </div>
+                            <div className="text-sm text-muted-foreground truncate">
+                              {order.items.length > 0 
+                                ? order.items.map(item => 
+                                    `${item.product_name}${item.product_variant ? ` (${item.product_variant})` : ''} x${item.quantity}`
+                                  ).join('、')
+                                : '(無商品明細)'
+                              }
+                            </div>
+                            {order.note && (
+                              <div className="text-xs text-muted-foreground mt-1">
+                                備註：{order.note}
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground text-center py-4 border rounded-lg">
+                      {noOrdersMessage || '此客戶沒有未結清的銷售訂單'}
+                    </div>
+                  )}
+
+                  {/* 收款金額小於勾選金額的提醒 */}
+                  {selectedOrderIds.size > 0 && formData.amount < selectedTotal && (
+                    <div className="flex items-center gap-2 text-warning text-sm bg-warning/10 p-3 rounded-lg">
+                      <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                      <span>提醒：收款金額小於勾選結清金額，請確認是否仍要結清。</span>
+                    </div>
                   )}
                 </div>
-                
-                {unsettledOrders.length > 0 ? (
-                  <div className="border rounded-lg divide-y h-64 max-h-80 overflow-y-auto flex-shrink-0">
-                    {unsettledOrders.map(order => (
-                      <label
-                        key={order.id}
-                        className="flex items-start gap-3 p-3 hover:bg-muted/50 cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={selectedOrderIds.has(order.id)}
-                          onCheckedChange={() => toggleOrderSelection(order.id)}
-                          className="mt-1"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm text-muted-foreground">
-                              {formatDate(order.date)}
-                            </span>
-                            <span className="font-medium">
-                              {formatCurrency(order.total_price)}
-                            </span>
-                          </div>
-                          <div className="text-sm text-muted-foreground truncate">
-                            {order.items.length > 0 
-                              ? order.items.map(item => 
-                                  `${item.product_name}${item.product_variant ? ` (${item.product_variant})` : ''} x${item.quantity}`
-                                ).join('、')
-                              : '(無商品明細)'
-                            }
-                          </div>
-                          {order.note && (
-                            <div className="text-xs text-muted-foreground mt-1">
-                              備註：{order.note}
-                            </div>
-                          )}
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground text-center py-4 border rounded-lg">
-                    {noOrdersMessage || '此客戶沒有未結清的銷售訂單'}
-                  </div>
-                )}
-
-                {/* 收款金額小於勾選金額的提醒 */}
-                {selectedOrderIds.size > 0 && formData.amount < selectedTotal && (
-                  <div className="flex items-center gap-2 text-warning text-sm bg-warning/10 p-3 rounded-lg mt-3">
-                    <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                    <span>提醒：收款金額小於勾選結清金額，請確認是否仍要結清。</span>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
+            </div>
             
             {/* 底部按鈕區 */}
-            <div className="flex justify-end gap-3 px-6 py-4 border-t mt-auto flex-shrink-0">
+            <div className="shrink-0 border-t bg-background px-6 py-4 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 取消
               </Button>
