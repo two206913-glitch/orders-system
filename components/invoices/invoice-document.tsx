@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Printer, Download } from 'lucide-react'
+import { Printer, Check } from 'lucide-react'
 import { formatCurrency, formatDate, getOrderTypeLabel } from '@/lib/locale'
 import type { CustomerInvoice, SupplierInvoice } from '@/app/actions/invoices'
 
@@ -76,6 +76,8 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
             .status { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; }
             .status-settled { background: #dcfce7; color: #166534; }
             .status-pending { background: #fef3c7; color: #92400e; }
+            .row-settled { background: #f0fdf4; }
+            .check-icon { color: #16a34a; font-weight: bold; }
             @media print {
               body { padding: 10mm; }
               .no-print { display: none; }
@@ -158,19 +160,20 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
                 <th className="border p-2 text-right">{isCustomer ? '單價' : '單件成本'}</th>
                 <th className="border p-2 text-right">運費</th>
                 <th className="border p-2 text-right">金額</th>
+                <th className="border p-2 text-center">結清</th>
                 <th className="border p-2 text-left">備註</th>
               </tr>
             </thead>
             <tbody>
               {data.items.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="border p-8 text-center text-muted-foreground">
+                  <td colSpan={10} className="border p-8 text-center text-muted-foreground">
                     此期間無交易紀錄
                   </td>
                 </tr>
               ) : (
                 data.items.map((item, idx) => (
-                  <tr key={idx}>
+                  <tr key={idx} className={item.is_settled ? 'bg-success/5' : ''}>
                     <td className="border p-2">{formatDate(item.date)}</td>
                     <td className="border p-2">{getOrderTypeLabel(item.type)}</td>
                     <td className="border p-2 font-medium">{item.product_name}</td>
@@ -185,6 +188,13 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
                     <td className={`border p-2 text-right font-medium ${item.amount < 0 ? 'text-destructive' : ''}`}>
                       {formatCurrency(item.amount)}
                     </td>
+                    <td className="border p-2 text-center">
+                      {item.is_settled ? (
+                        <Check className="h-4 w-4 text-success mx-auto" />
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </td>
                     <td className="border p-2 text-muted-foreground text-sm">{item.note || '-'}</td>
                   </tr>
                 ))
@@ -195,7 +205,7 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
           {/* 彙總區塊 */}
           <div className="grid grid-cols-2 gap-6">
             <div className="p-4 border rounded-lg">
-              <h4 className="text-sm font-semibold text-muted-foreground mb-4">本期彙總</h4>
+              <h4 className="text-sm font-semibold text-muted-foreground mb-4">本期彙總（未結清）</h4>
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">{isCustomer ? '銷貨小計' : '進貨小計'}</span>
@@ -211,6 +221,12 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
                   <span className="text-muted-foreground">{isCustomer ? '銷退合計' : '進退合計'}</span>
                   <span className="font-medium text-destructive">-{formatCurrency(returnTotal ?? 0)}</span>
                 </div>
+                {isCustomer && customerData?.settled_total && customerData.settled_total > 0 && (
+                  <div className="flex justify-between text-success">
+                    <span>本期已結清</span>
+                    <span className="font-medium">{formatCurrency(customerData.settled_total)}</span>
+                  </div>
+                )}
                 <div className="border-t pt-2 mt-2 flex justify-between">
                   <span className="font-semibold">{isCustomer ? '本期應收' : '本期應付'}</span>
                   <span className="font-bold text-lg">{formatCurrency(netTotal ?? 0)}</span>
