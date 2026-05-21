@@ -100,8 +100,8 @@ export function PaymentHistoryDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b">
             <DialogTitle className="flex items-center justify-between">
               <span>{partyLabel}：{partyName} - {title}</span>
               <Button size="sm" onClick={() => setShowAddDialog(true)}>
@@ -111,7 +111,7 @@ export function PaymentHistoryDialog({
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
             {/* 總計 */}
             <div className="flex justify-between items-center p-4 bg-muted/30 rounded-lg">
               <span className="text-muted-foreground">累計{isReceipt ? '已收' : '已付'}金額</span>

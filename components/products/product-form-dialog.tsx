@@ -130,12 +130,13 @@ export function ProductFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b">
           <DialogTitle>{isEditing ? '編輯商品' : '新增商品'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-6">
           {/* 基本資訊 */}
           <div className="space-y-4">
             <h3 className="font-medium text-sm text-muted-foreground">基本資訊</h3>
@@ -259,9 +260,10 @@ export function ProductFormDialog({
               rows={2}
             />
           </Field>
+          </div>
 
           {/* 按鈕 */}
-          <div className="flex justify-end gap-2 pt-4 border-t">
+          <div className="shrink-0 border-t bg-background px-6 py-4 flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"
