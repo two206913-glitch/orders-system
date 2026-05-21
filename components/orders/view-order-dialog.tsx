@@ -114,8 +114,8 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader className="space-y-3">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b space-y-3">
           <DialogTitle className="text-xl font-semibold">訂單詳情</DialogTitle>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -133,7 +133,7 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
           </div>
         </DialogHeader>
 
-        <div className="space-y-6 pt-2">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-6">
           {/* 基本資訊 */}
           <div className="grid grid-cols-2 gap-4">
             <DetailItem label="交易類型" value={
@@ -243,7 +243,8 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
             icon={Clock}
             label="建立時間"
             value={createdAt}
-          />
+/>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

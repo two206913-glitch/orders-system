@@ -195,150 +195,153 @@ export function PaymentFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b">
           <DialogTitle>
             {isEditing ? '編輯' : '新增'}
             {isReceipt ? '收款單' : '付款單'}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Field>
-              <FieldLabel>類型</FieldLabel>
-              <Select
-                value={formData.type}
-                onValueChange={(value) => updateField('type', value as 'receipt' | 'payment')}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="receipt">收款（客戶付款）</SelectItem>
-                  <SelectItem value="payment">付款（付給供應商）</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>日期</FieldLabel>
-              <Input
-                type="date"
-                value={formData.date || ''}
-                onChange={(e) => updateField('date', e.target.value || null)}
-              />
-            </Field>
-          </div>
-
-          <Field>
-            <FieldLabel>{isReceipt ? '客戶名稱' : '供應商名稱'}</FieldLabel>
-            <Input
-              placeholder={isReceipt ? '輸入客戶名稱' : '輸入供應商名稱'}
-              value={formData.party_name}
-              onChange={(e) => updateField('party_name', e.target.value)}
-              required
-            />
-          </Field>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field>
-              <FieldLabel>金額 (NT$)</FieldLabel>
-              <Input
-                type="number"
-                placeholder="0"
-                value={formData.amount || ''}
-                onChange={(e) => updateField('amount', e.target.value ? parseInt(e.target.value) : 0)}
-                required
-                min={1}
-                max={maxAmount}
-              />
-              {maxAmount !== undefined && maxAmount > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isReceipt ? '未收餘額' : '未付餘額'}：{formatCurrency(maxAmount)}
-                </p>
-              )}
-            </Field>
-            <Field>
-              <FieldLabel>付款方式</FieldLabel>
-              <Select
-                value={formData.payment_method || ''}
-                onValueChange={(value) => updateField('payment_method', value || null)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="選擇付款方式" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_METHODS.map((method) => (
-                    <SelectItem key={method} value={method}>
-                      {PAYMENT_METHOD_LABELS[method]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-
-          <Field>
-            <FieldLabel>備註</FieldLabel>
-            <Textarea
-              placeholder="輸入備註..."
-              value={formData.note || ''}
-              onChange={(e) => updateField('note', e.target.value || null)}
-              rows={3}
-            />
-          </Field>
-
-          {/* 顯示當初結清的訂單（僅編輯收款單時顯示） */}
-          {isEditing && isReceipt && settledOrders.length > 0 && (
-            <div className="space-y-2">
-              <FieldLabel>此收款結清的訂單</FieldLabel>
-              <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
-                {settledOrders.map(order => (
-                  <div
-                    key={order.id}
-                    className="flex items-start gap-3 p-3 bg-success/5"
-                  >
-                    <Check className="h-4 w-4 text-success mt-1 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">
-                            {formatDate(order.date)}
-                          </span>
-                          {order.type === 'sale_return' && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
-                              銷退
-                            </span>
-                          )}
-                        </div>
-                        <span className={`font-medium ${order.display_amount < 0 ? 'text-destructive' : ''}`}>
-                          {formatCurrency(order.display_amount)}
-                        </span>
-                      </div>
-                      <div className="text-sm text-muted-foreground truncate">
-                        {order.items.length > 0 
-                          ? order.items.map(item => 
-                              `${item.product_name}${item.product_variant ? ` (${item.product_variant})` : ''} x${item.quantity}`
-                            ).join('、')
-                          : '(無商品明細)'
-                        }
-                      </div>
-                      {order.note && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          備註：{order.note}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                共 {settledOrders.length} 筆訂單，合計 {formatCurrency(settledOrders.reduce((sum, o) => sum + o.display_amount, 0))}
-              </p>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>類型</FieldLabel>
+                <Select
+                  value={formData.type}
+                  onValueChange={(value) => updateField('type', value as 'receipt' | 'payment')}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="receipt">收款（客戶付款）</SelectItem>
+                    <SelectItem value="payment">付款（付給供應商）</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>日期</FieldLabel>
+                <Input
+                  type="date"
+                  value={formData.date || ''}
+                  onChange={(e) => updateField('date', e.target.value || null)}
+                />
+              </Field>
             </div>
-          )}
 
-          <div className="flex justify-end gap-3 pt-4">
+            <Field>
+              <FieldLabel>{isReceipt ? '客戶名稱' : '供應商名稱'}</FieldLabel>
+              <Input
+                placeholder={isReceipt ? '輸入客戶名稱' : '輸入供應商名稱'}
+                value={formData.party_name}
+                onChange={(e) => updateField('party_name', e.target.value)}
+                required
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>金額 (NT$)</FieldLabel>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={formData.amount || ''}
+                  onChange={(e) => updateField('amount', e.target.value ? parseInt(e.target.value) : 0)}
+                  required
+                  min={1}
+                  max={maxAmount}
+                />
+                {maxAmount !== undefined && maxAmount > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isReceipt ? '未收餘額' : '未付餘額'}：{formatCurrency(maxAmount)}
+                  </p>
+                )}
+              </Field>
+              <Field>
+                <FieldLabel>付款方式</FieldLabel>
+                <Select
+                  value={formData.payment_method || ''}
+                  onValueChange={(value) => updateField('payment_method', value || null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="選擇付款方式" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_METHODS.map((method) => (
+                      <SelectItem key={method} value={method}>
+                        {PAYMENT_METHOD_LABELS[method]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+
+            <Field>
+              <FieldLabel>備註</FieldLabel>
+              <Textarea
+                placeholder="輸入備註..."
+                value={formData.note || ''}
+                onChange={(e) => updateField('note', e.target.value || null)}
+                rows={2}
+              />
+            </Field>
+
+            {/* 顯示當初結清的訂單（僅編輯收款單時顯示） */}
+            {isEditing && isReceipt && settledOrders.length > 0 && (
+              <div className="space-y-2">
+                <FieldLabel>此收款結清的訂單</FieldLabel>
+                <div className="border rounded-lg divide-y max-h-40 overflow-y-auto">
+                  {settledOrders.map(order => (
+                    <div
+                      key={order.id}
+                      className="flex items-start gap-3 p-3 bg-success/5"
+                    >
+                      <Check className="h-4 w-4 text-success mt-1 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">
+                              {formatDate(order.date)}
+                            </span>
+                            {order.type === 'sale_return' && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
+                                銷退
+                              </span>
+                            )}
+                          </div>
+                          <span className={`font-medium ${order.display_amount < 0 ? 'text-destructive' : ''}`}>
+                            {formatCurrency(order.display_amount)}
+                          </span>
+                        </div>
+                        <div className="text-sm text-muted-foreground truncate">
+                          {order.items.length > 0 
+                            ? order.items.map(item => 
+                                `${item.product_name}${item.product_variant ? ` (${item.product_variant})` : ''} x${item.quantity}`
+                              ).join('、')
+                            : '(無商品明細)'
+                          }
+                        </div>
+                        {order.note && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            備註：{order.note}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  共 {settledOrders.length} 筆訂單，合計 {formatCurrency(settledOrders.reduce((sum, o) => sum + o.display_amount, 0))}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* 底部按鈕區 */}
+          <div className="shrink-0 border-t bg-background px-6 py-4 flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"

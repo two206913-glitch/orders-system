@@ -279,11 +279,12 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b">
           <DialogTitle>{mode === 'create' ? '新增訂單' : '編輯訂單'}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
           <FieldGroup className="space-y-4">
             {/* Type and Date Row */}
             <div className="grid grid-cols-2 gap-4">
@@ -627,8 +628,9 @@ export function OrderFormDialog({ open, onOpenChange, order, mode }: OrderFormDi
               />
             </Field>
           </FieldGroup>
+          </div>
 
-          <div className="flex justify-end gap-3 mt-6">
+          <div className="shrink-0 border-t bg-background px-6 py-4 flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               取消
             </Button>
