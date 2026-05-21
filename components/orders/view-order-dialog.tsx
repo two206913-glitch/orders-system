@@ -243,8 +243,7 @@ export function ViewOrderDialog({ open, onOpenChange, order }: ViewOrderDialogPr
             icon={Clock}
             label="建立時間"
             value={createdAt}
-/>
-          </div>
+          />
         </div>
       </DialogContent>
     </Dialog>
