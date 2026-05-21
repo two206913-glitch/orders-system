@@ -195,7 +195,7 @@ export function PaymentFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="w-[95vw] max-w-[500px] sm:max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col p-0">
         <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b">
           <DialogTitle>
             {isEditing ? '編輯' : '新增'}
@@ -204,8 +204,8 @@ export function PaymentFormDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4 w-full max-w-full">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field>
                 <FieldLabel>類型</FieldLabel>
                 <Select
@@ -241,7 +241,7 @@ export function PaymentFormDialog({
               />
             </Field>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field>
                 <FieldLabel>金額 (NT$)</FieldLabel>
                 <Input
@@ -291,16 +291,16 @@ export function PaymentFormDialog({
 
             {/* 顯示當初結清的訂單（僅編輯收款單時顯示） */}
             {isEditing && isReceipt && settledOrders.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-2 w-full max-w-full min-w-0 overflow-hidden">
                 <FieldLabel>此收款結清的訂單</FieldLabel>
-                <div className="border rounded-lg divide-y max-h-52 overflow-y-auto">
+                <div className="border rounded-lg divide-y max-h-52 overflow-y-auto w-full max-w-full min-w-0 overflow-hidden">
                   {settledOrders.map(order => (
                     <div
                       key={order.id}
-                      className="flex items-start gap-3 p-3 bg-success/5"
+                      className="flex items-start gap-3 p-3 bg-success/5 w-full max-w-full min-w-0 overflow-hidden"
                     >
                       <Check className="h-4 w-4 text-success mt-1 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 overflow-hidden">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <span className="text-sm text-muted-foreground">
@@ -312,11 +312,11 @@ export function PaymentFormDialog({
                               </span>
                             )}
                           </div>
-                          <span className={`font-medium ${order.display_amount < 0 ? 'text-destructive' : ''}`}>
+                          <span className={`font-medium flex-shrink-0 ${order.display_amount < 0 ? 'text-destructive' : ''}`}>
                             {formatCurrency(order.display_amount)}
                           </span>
                         </div>
-                        <div className="text-sm text-muted-foreground truncate">
+                        <div className="text-sm text-muted-foreground break-words whitespace-normal">
                           {order.items.length > 0 
                             ? order.items.map(item => 
                                 `${item.product_name}${item.product_variant ? ` (${item.product_variant})` : ''} x${item.quantity}`
@@ -325,7 +325,7 @@ export function PaymentFormDialog({
                           }
                         </div>
                         {order.note && (
-                          <div className="text-xs text-muted-foreground mt-1">
+                          <div className="text-xs text-muted-foreground mt-1 break-words whitespace-normal">
                             備註：{order.note}
                           </div>
                         )}
