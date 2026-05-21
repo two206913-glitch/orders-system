@@ -293,7 +293,7 @@ export function PaymentFormDialog({
             {isEditing && isReceipt && settledOrders.length > 0 && (
               <div className="space-y-2">
                 <FieldLabel>此收款結清的訂單</FieldLabel>
-                <div className="border rounded-lg divide-y max-h-40 overflow-y-auto">
+                <div className="border rounded-lg divide-y max-h-52 overflow-y-auto">
                   {settledOrders.map(order => (
                     <div
                       key={order.id}
