@@ -22,7 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
-import { FileText, Download, CheckCircle2, AlertCircle } from 'lucide-react'
+import { FileText, Download } from 'lucide-react'
 import { formatCurrency, formatDate, getOrderTypeLabel } from '@/lib/locale'
 import {
   getCustomerList,
@@ -213,20 +213,7 @@ export default function CustomerInvoicePage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                請款單 - {invoice.customer_name}
-                {invoice.is_settled ? (
-                  <Badge variant="outline" className="bg-success/10 text-success border-success/30">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    已結清
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30">
-                    <AlertCircle className="h-3 w-3 mr-1" />
-                    未結清
-                  </Badge>
-                )}
-              </CardTitle>
+              <CardTitle>請款單 - {invoice.customer_name}</CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
                 期間：{formatDate(invoice.date_from)} 至 {formatDate(invoice.date_to)}
               </p>
