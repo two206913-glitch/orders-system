@@ -83,7 +83,7 @@ export async function getCustomerInvoice(
 ): Promise<CustomerInvoice> {
   const supabase = await createClient()
   
-  // 取得該客戶在日期區間內的銷貨和銷退訂單（包含已結清，用於顯示）
+  // 取得該客戶在日期區間內的未結清銷貨和銷退訂單
   const { data: orders } = await supabase
     .from('orders')
     .select('id, date, type, product_name, spec, quantity, unit_price, shipping_fee, total_price, note, is_settled, settled_at')
@@ -91,6 +91,7 @@ export async function getCustomerInvoice(
     .in('type', ['sale', 'sale_return'])
     .gte('date', dateFrom)
     .lte('date', dateTo)
+    .or('is_settled.is.null,is_settled.eq.false')
     .order('date', { ascending: true })
   
   // 取得這些訂單的 order_items（包含 cost 欄位用於利潤計算）
@@ -176,26 +177,23 @@ export async function getCustomerInvoice(
     }
   })
   
-  // 計算該期間的銷貨和銷退（只計算未結清訂單）
-  const unsettledItems = items.filter(i => !i.is_settled)
-  const settledItems = items.filter(i => i.is_settled)
-  
-  const sale_total = unsettledItems
+  // 計算該期間的銷貨和銷退（所有 items 都是未結清）
+  const sale_total = items
     .filter(i => i.type === 'sale')
     .reduce((sum, i) => sum + i.amount, 0)
   
-  const shipping_total = unsettledItems
+  const shipping_total = items
     .filter(i => i.type === 'sale')
     .reduce((sum, i) => sum + i.shipping_fee, 0)
   
-  const return_total = unsettledItems
+  const return_total = items
     .filter(i => i.type === 'sale_return')
     .reduce((sum, i) => sum + Math.abs(i.amount), 0)
   
   const net_total = sale_total - return_total
   
-  // 本期已結清金額
-  const settled_total = settledItems.reduce((sum, i) => sum + Math.abs(i.amount), 0)
+  // 本期已結清金額（查詢只回傳未結清，所以永遠是 0）
+  const settled_total = 0
   
   // 計算總已收金額
   const received_amount = receipts?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0
