@@ -25,7 +25,7 @@ import { Plus, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/locale'
 import { PAYMENT_METHODS } from '@/lib/types/order'
 import { PAYMENT_METHOD_LABELS } from '@/lib/locale'
-import { createReceiptWithSettlement } from '@/app/actions/payments'
+import { createReceiptWithSettlement, createPaymentWithSettlement } from '@/app/actions/payments'
 import { toast } from 'sonner'
 
 interface PartyBalance {
@@ -393,6 +393,9 @@ export function AddPaymentButtonClient() {
   const [parties, setParties] = useState<PartyBalance[]>([])
   const [selectedParty, setSelectedParty] = useState<string>('')
   const [partyInfo, setPartyInfo] = useState<PartyBalance | null>(null)
+  const [unsettledOrders, setUnsettledOrders] = useState<UnsettledOrder[]>([])
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set())
+  const [noOrdersMessage, setNoOrdersMessage] = useState<string>('')
   const [isPending, startTransition] = useTransition()
   
   const [formData, setFormData] = useState({
@@ -415,7 +418,7 @@ export function AddPaymentButtonClient() {
     setParties(data.payables || [])
   }
 
-  // 選擇供應商時更新資訊
+  // 選擇供應商時載入該供應商的未結清訂單
   useEffect(() => {
     const party = parties.find(p => p.name === selectedParty)
     if (party) {
@@ -424,10 +427,46 @@ export function AddPaymentButtonClient() {
         ...prev,
         amount: party.pending_amount > 0 ? party.pending_amount : 0
       }))
+      // 載入未結清訂單
+      loadUnsettledOrders(selectedParty)
     } else {
       setPartyInfo(null)
+      setUnsettledOrders([])
+      setSelectedOrderIds(new Set())
+      setNoOrdersMessage('')
     }
   }, [selectedParty, parties])
+
+  const loadUnsettledOrders = async (supplierName: string) => {
+    try {
+      const res = await fetch(`/api/unsettled-purchase-orders?supplier=${encodeURIComponent(supplierName)}`)
+      const data = await res.json()
+      setUnsettledOrders(data.orders || [])
+      setSelectedOrderIds(new Set())
+      setNoOrdersMessage(data.message || '')
+    } catch (error) {
+      console.error('Failed to load unsettled orders:', error)
+      setUnsettledOrders([])
+      setNoOrdersMessage('載入訂單時發生錯誤')
+    }
+  }
+
+  const toggleOrderSelection = (orderId: string) => {
+    setSelectedOrderIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(orderId)) {
+        newSet.delete(orderId)
+      } else {
+        newSet.add(orderId)
+      }
+      return newSet
+    })
+  }
+
+  // 計算已勾選訂單的總金額（purchase 為正，purchase_return 為負）
+  const selectedTotal = unsettledOrders
+    .filter(o => selectedOrderIds.has(o.id))
+    .reduce((sum, o) => sum + (o.display_amount || 0), 0)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -442,24 +481,24 @@ export function AddPaymentButtonClient() {
       return
     }
     
-    if (partyInfo && formData.amount > partyInfo.pending_amount) {
-      toast.error(`金額不可超過未付餘額 ${formatCurrency(partyInfo.pending_amount)}`)
-      return
-    }
-    
     startTransition(async () => {
       try {
-        await createPayment({
-          type: 'payment',
-          party_name: selectedParty,
+        await createPaymentWithSettlement({
+          supplier_name: selectedParty,
           amount: formData.amount,
           payment_method: formData.payment_method || null,
           date: formData.date,
           note: formData.note || null,
+          settle_order_ids: Array.from(selectedOrderIds),
         })
-        toast.success('付款已記錄')
+        toast.success(
+          selectedOrderIds.size > 0 
+            ? `付款已新增，${selectedOrderIds.size} 筆訂單已標記結清`
+            : '付款已新增'
+        )
         setOpen(false)
         setSelectedParty('')
+        setSelectedOrderIds(new Set())
         setFormData({
           amount: 0,
           payment_method: '',
@@ -469,7 +508,7 @@ export function AddPaymentButtonClient() {
         router.refresh()
       } catch (error) {
         console.error('Failed to create payment:', error)
-        toast.error('付款記錄失敗')
+        toast.error(error instanceof Error ? error.message : '付款記錄失敗')
       }
     })
   }
@@ -481,117 +520,193 @@ export function AddPaymentButtonClient() {
         新增付款
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b">
             <DialogTitle>新增付款</DialogTitle>
           </DialogHeader>
           
-          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-            <Field>
-              <FieldLabel>選擇供應商</FieldLabel>
-              <Select value={selectedParty} onValueChange={setSelectedParty}>
-                <SelectTrigger>
-                  <SelectValue placeholder="選擇供應商" />
-                </SelectTrigger>
-                <SelectContent>
-                  {parties.length === 0 ? (
-                    <SelectItem value="_none" disabled>無待付款供應商</SelectItem>
-                  ) : (
-                    parties.map(p => (
-                      <SelectItem key={p.name} value={p.name}>
-                        {p.name} - 未付 {formatCurrency(p.pending_amount)}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </Field>
-            
-            {/* 供應商應付資訊 */}
-            {partyInfo && (
-              <Card className={partyInfo.is_settled ? 'bg-success/5 border-success/30' : 'bg-destructive/5 border-destructive/30'}>
-                <CardContent className="pt-4 pb-3">
-                  <div className="flex items-center gap-2 mb-3">
-                    {partyInfo.is_settled ? (
-                      <CheckCircle2 className="h-4 w-4 text-success" />
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+            {/* 可捲動的內容區 */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+              <Field>
+                <FieldLabel>選擇供應商</FieldLabel>
+                <Select value={selectedParty} onValueChange={setSelectedParty}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="選擇供應商" />
+                  </SelectTrigger>
+                  <SelectContent className="w-[var(--radix-select-trigger-width)] max-h-60 overflow-y-auto z-[9999]">
+                    {parties.length === 0 ? (
+                      <SelectItem value="_none" disabled>無待付款供應商</SelectItem>
                     ) : (
-                      <AlertCircle className="h-4 w-4 text-destructive" />
+                      parties.map(p => (
+                        <SelectItem key={p.name} value={p.name} className="truncate">
+                          <span className="truncate">{p.name} - 未付 {formatCurrency(p.pending_amount)}</span>
+                        </SelectItem>
+                      ))
                     )}
-                    <span className="font-medium">{partyInfo.name}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">應付金額</p>
-                      <p className="font-semibold">{formatCurrency(partyInfo.total_amount)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">已付金額</p>
-                      <p className="font-semibold text-primary">{formatCurrency(partyInfo.received_amount)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">未付金額</p>
-                      <p className={`font-semibold ${partyInfo.pending_amount > 0 ? 'text-destructive' : 'text-success'}`}>
-                        {formatCurrency(partyInfo.pending_amount)}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-            
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel>付款金額 (NT$)</FieldLabel>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={formData.amount || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, amount: parseInt(e.target.value) || 0 }))}
-                  min={1}
-                  max={partyInfo?.pending_amount}
-                  required
-                />
+                  </SelectContent>
+                </Select>
               </Field>
-              <Field>
-                <FieldLabel>日期</FieldLabel>
-                <Input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                />
-              </Field>
+              
+              {/* 供應商應付資訊 */}
+              {partyInfo && (
+                <Card className={partyInfo.is_settled ? 'bg-success/5 border-success/30' : 'bg-destructive/5 border-destructive/30'}>
+                  <CardContent className="pt-4 pb-3">
+                    <div className="flex items-center gap-2 mb-3">
+                      {partyInfo.is_settled ? (
+                        <CheckCircle2 className="h-4 w-4 text-success" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-destructive" />
+                      )}
+                      <span className="font-medium">{partyInfo.name}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">應付金額</p>
+                        <p className="font-semibold">{formatCurrency(partyInfo.total_amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">已付金額</p>
+                        <p className="font-semibold text-primary">{formatCurrency(partyInfo.received_amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">未付金額</p>
+                        <p className={`font-semibold ${partyInfo.pending_amount > 0 ? 'text-destructive' : 'text-success'}`}>
+                          {formatCurrency(partyInfo.pending_amount)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel>付款金額 (NT$)</FieldLabel>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={formData.amount || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, amount: parseInt(e.target.value) || 0 }))}
+                    min={1}
+                    required
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>日期</FieldLabel>
+                  <Input
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                  />
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel>付款方式</FieldLabel>
+                  <Select 
+                    value={formData.payment_method} 
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, payment_method: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="選擇付款方式" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_METHODS.map((method) => (
+                        <SelectItem key={method} value={method}>
+                          {PAYMENT_METHOD_LABELS[method]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel>備註</FieldLabel>
+                  <Input
+                    placeholder="輸入備註..."
+                    value={formData.note}
+                    onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
+                  />
+                </Field>
+              </div>
+
+              {/* 勾選要結清的訂單 */}
+              {selectedParty && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <FieldLabel className="mb-0">勾選要結清的訂單</FieldLabel>
+                    {selectedOrderIds.size > 0 && (
+                      <span className="text-sm font-medium">
+                        已勾選結清金額：{formatCurrency(selectedTotal)}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {unsettledOrders.length > 0 ? (
+                    <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
+                      {unsettledOrders.map(order => (
+                        <label
+                          key={order.id}
+                          className="flex items-start gap-3 p-3 hover:bg-muted/50 cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={selectedOrderIds.has(order.id)}
+                            onCheckedChange={() => toggleOrderSelection(order.id)}
+                            className="mt-1"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground">
+                                  {formatDate(order.date)}
+                                </span>
+                                {order.type === 'purchase_return' && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
+                                    進退
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`font-medium ${order.display_amount < 0 ? 'text-destructive' : ''}`}>
+                                {formatCurrency(order.display_amount)}
+                              </span>
+                            </div>
+                            <div className="text-sm text-muted-foreground truncate">
+                              {order.items.length > 0 
+                                ? order.items.map(item => 
+                                    `${item.product_name}${item.product_variant ? ` (${item.product_variant})` : ''} x${item.quantity}`
+                                  ).join('、')
+                                : '(無商品明細)'
+                              }
+                            </div>
+                            {order.note && (
+                              <div className="text-xs text-muted-foreground mt-1">
+                                備註：{order.note}
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground text-center py-4 border rounded-lg">
+                      {noOrdersMessage || '此供應商沒有未結清的訂單'}
+                    </div>
+                  )}
+
+                  {/* 付款金額小於勾選金額的提醒 */}
+                  {selectedOrderIds.size > 0 && formData.amount < selectedTotal && (
+                    <div className="flex items-center gap-2 text-warning text-sm bg-warning/10 p-3 rounded-lg">
+                      <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                      <span>提醒：付款金額小於勾選結清金額，請確認是否仍要結清。</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             
-            <Field>
-              <FieldLabel>付款方式</FieldLabel>
-              <Select 
-                value={formData.payment_method} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, payment_method: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="選擇付款方式" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_METHODS.map((method) => (
-                    <SelectItem key={method} value={method}>
-                      {PAYMENT_METHOD_LABELS[method]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            
-            <Field>
-              <FieldLabel>備註</FieldLabel>
-              <Textarea
-                placeholder="輸入備註..."
-                value={formData.note}
-                onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
-                rows={2}
-              />
-            </Field>
-            
-            <div className="flex justify-end gap-3 pt-4">
+            {/* 底部按鈕區 */}
+            <div className="shrink-0 border-t bg-background px-6 py-4 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 取消
               </Button>

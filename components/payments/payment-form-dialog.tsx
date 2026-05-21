@@ -82,21 +82,25 @@ export function PaymentFormDialog({
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   
-  // 結清訂單相關狀態（僅用於收款單編輯時顯示）
+  // 結清訂單相關狀態（用於收款單/付款單編輯時顯示）
   const [settledOrders, setSettledOrders] = useState<UnsettledOrder[]>([])
   const [settledOrderIds, setSettledOrderIds] = useState<Set<string>>(new Set())
 
-  // 載入當初結清的訂單（僅編輯收款單時）
+  // 載入當初結清的訂單（編輯收款單或付款單時）
   useEffect(() => {
-    if (open && isEditing && payment && payment.type === 'receipt') {
-      loadSettledOrders(payment.id, payment.party_name)
+    if (open && isEditing && payment) {
+      if (payment.type === 'receipt') {
+        loadReceiptSettledOrders(payment.id)
+      } else if (payment.type === 'payment') {
+        loadPaymentSettledOrders(payment.id)
+      }
     } else {
       setSettledOrders([])
       setSettledOrderIds(new Set())
     }
   }, [open, isEditing, payment])
 
-  const loadSettledOrders = async (receiptId: string, customerName: string) => {
+  const loadReceiptSettledOrders = async (receiptId: string) => {
     try {
       // 1. 取得當初結清的訂單 ID
       const settlementsRes = await fetch(`/api/receipt-settlements?receipt_id=${receiptId}`)
@@ -109,9 +113,34 @@ export function PaymentFormDialog({
         return
       }
       
-      // 2. 取得這些訂單的詳細資料（從 unsettled-orders API，但這些訂單已結清）
-      // 需要另外查詢，因為 unsettled-orders 只會回傳未結清的
+      // 2. 取得這些訂單的詳細資料
       const ordersRes = await fetch(`/api/settled-orders?ids=${orderIds.join(',')}`)
+      const ordersData = await ordersRes.json()
+      
+      setSettledOrders(ordersData.orders || [])
+      setSettledOrderIds(new Set(orderIds))
+    } catch (error) {
+      console.error('Failed to load settled orders:', error)
+      setSettledOrders([])
+      setSettledOrderIds(new Set())
+    }
+  }
+
+  const loadPaymentSettledOrders = async (paymentId: string) => {
+    try {
+      // 1. 取得當初結清的訂單 ID
+      const settlementsRes = await fetch(`/api/payment-settlements?payment_id=${paymentId}`)
+      const settlementsData = await settlementsRes.json()
+      const orderIds = settlementsData.order_ids || []
+      
+      if (orderIds.length === 0) {
+        setSettledOrders([])
+        setSettledOrderIds(new Set())
+        return
+      }
+      
+      // 2. 取得這些訂單的詳細資料
+      const ordersRes = await fetch(`/api/settled-purchase-orders?ids=${orderIds.join(',')}`)
       const ordersData = await ordersRes.json()
       
       setSettledOrders(ordersData.orders || [])
@@ -289,10 +318,10 @@ export function PaymentFormDialog({
               />
             </Field>
 
-            {/* 顯示當初結清的訂單（僅編輯收款單時顯示） */}
-            {isEditing && isReceipt && settledOrders.length > 0 && (
+            {/* 顯示當初結清的訂單（編輯收款單或付款單時顯示） */}
+            {isEditing && settledOrders.length > 0 && (
               <div className="space-y-2 w-full max-w-full min-w-0 overflow-hidden">
-                <FieldLabel>此收款結清的訂單</FieldLabel>
+                <FieldLabel>此{isReceipt ? '收款' : '付款'}結清的訂單</FieldLabel>
                 <div className="border rounded-lg divide-y max-h-52 overflow-y-auto w-full max-w-full min-w-0 overflow-hidden">
                   {settledOrders.map(order => (
                     <div
@@ -309,6 +338,11 @@ export function PaymentFormDialog({
                             {order.type === 'sale_return' && (
                               <span className="text-xs px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
                                 銷退
+                              </span>
+                            )}
+                            {order.type === 'purchase_return' && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
+                                進退
                               </span>
                             )}
                           </div>
