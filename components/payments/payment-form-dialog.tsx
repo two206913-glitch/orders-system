@@ -19,11 +19,27 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Field, FieldLabel } from '@/components/ui/field'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Check } from 'lucide-react'
 import { createPayment, updatePayment } from '@/app/actions/payments'
 import type { Payment, PaymentInsert } from '@/lib/types/payment'
 import { PAYMENT_METHODS } from '@/lib/types/order'
-import { PAYMENT_METHOD_LABELS, formatCurrency } from '@/lib/locale'
+import { PAYMENT_METHOD_LABELS, formatCurrency, formatDate } from '@/lib/locale'
 import { toast } from 'sonner'
+
+interface UnsettledOrder {
+  id: string
+  date: string
+  type: string
+  total_price: number
+  display_amount: number
+  note: string | null
+  items: {
+    product_name: string
+    product_variant: string | null
+    quantity: number
+  }[]
+}
 
 interface PaymentFormDialogProps {
   open: boolean
@@ -65,6 +81,47 @@ export function PaymentFormDialog({
     note: null,
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // 結清訂單相關狀態（僅用於收款單編輯時顯示）
+  const [settledOrders, setSettledOrders] = useState<UnsettledOrder[]>([])
+  const [settledOrderIds, setSettledOrderIds] = useState<Set<string>>(new Set())
+
+  // 載入當初結清的訂單（僅編輯收款單時）
+  useEffect(() => {
+    if (open && isEditing && payment && payment.type === 'receipt') {
+      loadSettledOrders(payment.id, payment.party_name)
+    } else {
+      setSettledOrders([])
+      setSettledOrderIds(new Set())
+    }
+  }, [open, isEditing, payment])
+
+  const loadSettledOrders = async (receiptId: string, customerName: string) => {
+    try {
+      // 1. 取得當初結清的訂單 ID
+      const settlementsRes = await fetch(`/api/receipt-settlements?receipt_id=${receiptId}`)
+      const settlementsData = await settlementsRes.json()
+      const orderIds = settlementsData.order_ids || []
+      
+      if (orderIds.length === 0) {
+        setSettledOrders([])
+        setSettledOrderIds(new Set())
+        return
+      }
+      
+      // 2. 取得這些訂單的詳細資料（從 unsettled-orders API，但這些訂單已結清）
+      // 需要另外查詢，因為 unsettled-orders 只會回傳未結清的
+      const ordersRes = await fetch(`/api/settled-orders?ids=${orderIds.join(',')}`)
+      const ordersData = await ordersRes.json()
+      
+      setSettledOrders(ordersData.orders || [])
+      setSettledOrderIds(new Set(orderIds))
+    } catch (error) {
+      console.error('Failed to load settled orders:', error)
+      setSettledOrders([])
+      setSettledOrderIds(new Set())
+    }
+  }
 
   useEffect(() => {
     if (payment) {
@@ -230,6 +287,56 @@ export function PaymentFormDialog({
               rows={3}
             />
           </Field>
+
+          {/* 顯示當初結清的訂單（僅編輯收款單時顯示） */}
+          {isEditing && isReceipt && settledOrders.length > 0 && (
+            <div className="space-y-2">
+              <FieldLabel>此收款結清的訂單</FieldLabel>
+              <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+                {settledOrders.map(order => (
+                  <div
+                    key={order.id}
+                    className="flex items-start gap-3 p-3 bg-success/5"
+                  >
+                    <Check className="h-4 w-4 text-success mt-1 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">
+                            {formatDate(order.date)}
+                          </span>
+                          {order.type === 'sale_return' && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
+                              銷退
+                            </span>
+                          )}
+                        </div>
+                        <span className={`font-medium ${order.display_amount < 0 ? 'text-destructive' : ''}`}>
+                          {formatCurrency(order.display_amount)}
+                        </span>
+                      </div>
+                      <div className="text-sm text-muted-foreground truncate">
+                        {order.items.length > 0 
+                          ? order.items.map(item => 
+                              `${item.product_name}${item.product_variant ? ` (${item.product_variant})` : ''} x${item.quantity}`
+                            ).join('、')
+                          : '(無商品明細)'
+                        }
+                      </div>
+                      {order.note && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          備註：{order.note}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                共 {settledOrders.length} 筆訂單，合計 {formatCurrency(settledOrders.reduce((sum, o) => sum + o.display_amount, 0))}
+              </p>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-4">
             <Button
