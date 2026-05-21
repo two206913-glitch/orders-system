@@ -134,18 +134,6 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
               <div className="text-xs text-muted-foreground mb-1">製單日期</div>
               <div className="font-medium">{formatDate(new Date().toISOString())}</div>
             </div>
-            <div className="text-center">
-              <div className="text-xs text-muted-foreground mb-1">狀態</div>
-              <div>
-                <span className={`inline-block px-3 py-1 rounded text-xs font-semibold ${
-                  isSettled 
-                    ? 'bg-success/10 text-success' 
-                    : 'bg-warning/10 text-warning'
-                }`}>
-                  {isSettled ? '已結清' : '未結清'}
-                </span>
-              </div>
-            </div>
           </div>
           
           {/* 明細表格 */}
