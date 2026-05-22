@@ -106,7 +106,7 @@ export default function CustomerInvoicePage() {
       [],
     ]
     
-    const headers = ['日期', '類型', '商品名稱', '規格', '數量', '單價', '運費', '金額', '備註', '結清狀態']
+    const headers = ['日期', '類型', '商品名稱', '規格', '數量', '單價', '運費', '金額', '備註']
     const rows = invoice.items.map(item => [
       formatDate(item.date),
       getOrderTypeLabel(item.type),
@@ -117,18 +117,17 @@ export default function CustomerInvoicePage() {
       item.shipping_fee.toString(),
       item.amount.toString(),
       item.note || '',
-      item.is_settled ? '已結清' : '未結清',
     ])
     
     // 加入彙總行
     const summaryRows = [
       [],
-      ['', '', '', '', '', '', '', '', '銷貨小計', invoice.sale_total.toString()],
-      ['', '', '', '', '', '', '', '', '含運費', invoice.shipping_total.toString()],
-      ['', '', '', '', '', '', '', '', '銷退合計', (-invoice.return_total).toString()],
-      ['', '', '', '', '', '', '', '', '本期應收', invoice.net_total.toString()],
-      ['', '', '', '', '', '', '', '', '本期已收', invoice.period_received.toString()],
-      ['', '', '', '', '', '', '', '', '本期未收', invoice.period_pending.toString()],
+      ['', '', '', '', '', '', '', '銷貨小計', invoice.sale_total.toString()],
+      ['', '', '', '', '', '', '', '含運費', invoice.shipping_total.toString()],
+      ['', '', '', '', '', '', '', '銷退合計', (-invoice.return_total).toString()],
+      ['', '', '', '', '', '', '', '本期應收', invoice.net_total.toString()],
+      ['', '', '', '', '', '', '', '本期已收', invoice.period_received.toString()],
+      ['', '', '', '', '', '', '', '本期未收', invoice.period_pending.toString()],
     ]
     
     const allRows = [
