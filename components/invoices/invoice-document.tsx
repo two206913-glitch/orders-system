@@ -32,11 +32,11 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
   const shippingTotal = isCustomer ? customerData?.shipping_total : supplierData?.shipping_total
   const returnTotal = isCustomer ? customerData?.return_total : supplierData?.return_total
   const netTotal = isCustomer ? customerData?.net_total : supplierData?.net_total
-  // 付款單使用 period_paid/period_pending，請款單使用 received_amount/pending_amount
-  const paidAmount = isCustomer ? customerData?.received_amount : supplierData?.period_paid
-  const pendingAmount = isCustomer ? customerData?.pending_amount : supplierData?.period_pending
-  // 付款單不再使用 is_settled，改用 period_pending 判斷
-  const isPeriodSettled = isCustomer ? customerData?.is_settled : (supplierData?.period_pending ?? 0) <= 0
+  // 請款單和付款單都使用 period_* 欄位
+  const paidAmount = isCustomer ? customerData?.period_received : supplierData?.period_paid
+  const pendingAmount = isCustomer ? customerData?.period_pending : supplierData?.period_pending
+  // 使用 period_pending 判斷是否已結清
+  const isPeriodSettled = isCustomer ? (customerData?.period_pending ?? 0) <= 0 : (supplierData?.period_pending ?? 0) <= 0
   
   const handlePrint = () => {
     const printContent = printRef.current

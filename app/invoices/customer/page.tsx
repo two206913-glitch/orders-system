@@ -103,11 +103,10 @@ export default function CustomerInvoicePage() {
       ['客戶名稱', invoice.customer_name],
       ['期間', `${formatDate(invoice.date_from)} 至 ${formatDate(invoice.date_to)}`],
       ['製單日期', formatDate(new Date().toISOString())],
-      ['狀態', invoice.is_settled ? '已結清' : '未結清'],
       [],
     ]
     
-    const headers = ['日期', '類型', '商品名稱', '規格', '數量', '單價', '運費', '金額', '備註']
+    const headers = ['日期', '類型', '商品名稱', '規格', '數量', '單價', '運費', '金額', '備註', '結清狀態']
     const rows = invoice.items.map(item => [
       formatDate(item.date),
       getOrderTypeLabel(item.type),
@@ -118,17 +117,18 @@ export default function CustomerInvoicePage() {
       item.shipping_fee.toString(),
       item.amount.toString(),
       item.note || '',
+      item.is_settled ? '已結清' : '未結清',
     ])
     
     // 加入彙總行
     const summaryRows = [
       [],
-      ['', '', '', '', '', '', '', '銷貨小計', invoice.sale_total.toString()],
-      ['', '', '', '', '', '', '', '含運費', invoice.shipping_total.toString()],
-      ['', '', '', '', '', '', '', '銷退合計', (-invoice.return_total).toString()],
-      ['', '', '', '', '', '', '', '應收總額', invoice.net_total.toString()],
-      ['', '', '', '', '', '', '', '已收金額', invoice.received_amount.toString()],
-      ['', '', '', '', '', '', '', '未收金額', invoice.pending_amount.toString()],
+      ['', '', '', '', '', '', '', '', '銷貨小計', invoice.sale_total.toString()],
+      ['', '', '', '', '', '', '', '', '含運費', invoice.shipping_total.toString()],
+      ['', '', '', '', '', '', '', '', '銷退合計', (-invoice.return_total).toString()],
+      ['', '', '', '', '', '', '', '', '本期應收', invoice.net_total.toString()],
+      ['', '', '', '', '', '', '', '', '本期已收', invoice.period_received.toString()],
+      ['', '', '', '', '', '', '', '', '本期未收', invoice.period_pending.toString()],
     ]
     
     const allRows = [
@@ -244,12 +244,13 @@ export default function CustomerInvoicePage() {
                     <TableHead className="text-right">運費</TableHead>
                     <TableHead className="text-right">金額</TableHead>
                     <TableHead>備註</TableHead>
+                    <TableHead>結清狀態</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {invoice.items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                         此期間無交易紀錄
                       </TableCell>
                     </TableRow>
@@ -276,6 +277,17 @@ export default function CustomerInvoicePage() {
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm max-w-[150px] truncate">
                           {item.note || '-'}
+                        </TableCell>
+                        <TableCell>
+                          {item.is_settled ? (
+                            <Badge variant="outline" className="bg-success/10 text-success border-success/30 text-xs">
+                              已結清
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-xs">
+                              未結清
+                            </Badge>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -312,23 +324,27 @@ export default function CustomerInvoicePage() {
                 </CardContent>
               </Card>
               
-              <Card className={invoice.is_settled ? 'bg-success/5 border-success/30' : 'bg-warning/5 border-warning/30'}>
+              <Card className={invoice.period_pending <= 0 ? 'bg-success/5 border-success/30' : 'bg-warning/5 border-warning/30'}>
                 <CardContent className="pt-6">
-                  <h4 className="font-semibold mb-4">收款狀態</h4>
+                  <h4 className="font-semibold mb-4">本期收款摘要</h4>
                   <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">本期應收</span>
+                      <span className="font-medium">{formatCurrency(invoice.net_total)}</span>
+                    </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">累計已收</span>
+                      <span className="text-muted-foreground">本期已收</span>
                       <button
                         onClick={() => setShowHistoryDialog(true)}
                         className="font-medium text-success hover:underline cursor-pointer"
                       >
-                        {formatCurrency(invoice.received_amount)}
+                        {formatCurrency(invoice.period_received)}
                       </button>
                     </div>
                     <div className="border-t pt-2 flex justify-between">
-                      <span className="font-semibold">未收金額</span>
-                      <span className={`font-bold text-lg ${invoice.pending_amount > 0 ? 'text-warning' : 'text-success'}`}>
-                        {formatCurrency(invoice.pending_amount)}
+                      <span className="font-semibold">本期未收</span>
+                      <span className={`font-bold text-lg ${invoice.period_pending > 0 ? 'text-warning' : 'text-success'}`}>
+                        {formatCurrency(invoice.period_pending)}
                       </span>
                     </div>
                   </div>
