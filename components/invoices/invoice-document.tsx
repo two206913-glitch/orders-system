@@ -52,29 +52,29 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
           <title>${title} - ${partyName}</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif; padding: 10mm; font-size: 11px; }
-            .header { text-align: center; margin-bottom: 20px; }
-            .header h1 { font-size: 20px; margin-bottom: 8px; }
-            .header p { color: #666; font-size: 12px; }
-            .info { display: flex; justify-content: space-between; margin-bottom: 15px; padding: 10px; background: #f5f5f5; border-radius: 6px; }
+            body { font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif; padding: 10mm; font-size: 10px; }
+            .header { text-align: center; margin-bottom: 15px; }
+            .header h1 { font-size: 18px; margin-bottom: 6px; }
+            .header p { color: #666; font-size: 11px; }
+            .info { display: flex; justify-content: space-between; margin-bottom: 12px; padding: 8px; background: #f5f5f5; border-radius: 4px; }
             .info-item { text-align: center; }
-            .info-label { font-size: 10px; color: #666; margin-bottom: 3px; }
-            .info-value { font-weight: bold; font-size: 11px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; table-layout: fixed; }
-            th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: 10px; word-break: break-word; white-space: normal; overflow-wrap: anywhere; }
+            .info-label { font-size: 9px; color: #666; margin-bottom: 2px; }
+            .info-value { font-weight: bold; font-size: 10px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 12px; table-layout: fixed; }
+            th, td { border: 1px solid #ddd; padding: 4px 3px; text-align: left; font-size: 9px; white-space: normal; word-break: normal; overflow-wrap: break-word; line-height: 1.4; }
             th { background: #f5f5f5; font-weight: 600; }
             .text-right { text-align: right; }
             .text-center { text-align: center; }
             .negative { color: #dc2626; }
-            .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
-            .summary-card { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 11px; }
-            .summary-card h4 { font-size: 11px; margin-bottom: 8px; color: #666; }
-            .summary-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
-            .summary-total { border-top: 2px solid #333; padding-top: 6px; margin-top: 6px; font-size: 14px; font-weight: bold; }
-            .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; display: flex; justify-content: space-between; }
-            .signature { width: 120px; text-align: center; }
-            .signature-line { border-bottom: 1px solid #333; height: 30px; margin-bottom: 4px; }
-            .signature-label { font-size: 10px; color: #666; }
+            .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+            .summary-card { padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 10px; }
+            .summary-card h4 { font-size: 10px; margin-bottom: 6px; color: #666; }
+            .summary-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+            .summary-total { border-top: 2px solid #333; padding-top: 4px; margin-top: 4px; font-size: 12px; font-weight: bold; }
+            .footer { margin-top: 20px; padding-top: 12px; border-top: 1px solid #ddd; display: flex; justify-content: space-between; }
+            .signature { width: 100px; text-align: center; }
+            .signature-line { border-bottom: 1px solid #333; height: 25px; margin-bottom: 3px; }
+            .signature-label { font-size: 9px; color: #666; }
             .status-settled { color: #166534; }
             .status-pending { color: #92400e; }
             .row-settled { background: #f0fdf4; }
@@ -82,7 +82,7 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
               body { padding: 5mm; }
               .no-print { display: none; }
             }
-            @page { size: A4; margin: 10mm; }
+            @page { size: A4; margin: 8mm; }
           </style>
         </head>
         <body>
@@ -140,29 +140,29 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
           {/* 明細表格 - 請款單和付款單使用不同欄位 */}
           {isCustomer ? (
             /* 請款單表格：不顯示結清欄位（給客戶看） */
-            <table className="w-full border-collapse mb-6 text-sm" style={{ tableLayout: 'fixed' }}>
+            <table className="w-full border-collapse mb-6 text-xs" style={{ tableLayout: 'fixed' }}>
               <colgroup>
-                <col style={{ width: '70px' }} />   {/* 日期 */}
-                <col style={{ width: '45px' }} />   {/* 類型 */}
-                <col style={{ width: '25%' }} />    {/* 商品名稱 */}
-                <col style={{ width: '60px' }} />   {/* 規格 */}
-                <col style={{ width: '45px' }} />   {/* 數量 */}
-                <col style={{ width: '60px' }} />   {/* 單價 */}
-                <col style={{ width: '55px' }} />   {/* 運費 */}
-                <col style={{ width: '70px' }} />   {/* 金額 */}
+                <col style={{ width: '62px' }} />   {/* 日期 */}
+                <col style={{ width: '36px' }} />   {/* 類型 */}
+                <col style={{ width: '30%' }} />    {/* 商品名稱 - 加寬 */}
+                <col style={{ width: '50px' }} />   {/* 規格 */}
+                <col style={{ width: '36px' }} />   {/* 數量 */}
+                <col style={{ width: '50px' }} />   {/* 單價 */}
+                <col style={{ width: '45px' }} />   {/* 運費 */}
+                <col style={{ width: '60px' }} />   {/* 金額 */}
                 <col />                              {/* 備註 - 填滿剩餘空間 */}
               </colgroup>
               <thead>
                 <tr className="bg-muted/50">
-                  <th className="border p-2 text-left text-xs">日期</th>
-                  <th className="border p-2 text-left text-xs">類型</th>
-                  <th className="border p-2 text-left text-xs">商品名稱</th>
-                  <th className="border p-2 text-left text-xs">規格</th>
-                  <th className="border p-2 text-right text-xs">數量</th>
-                  <th className="border p-2 text-right text-xs">單價</th>
-                  <th className="border p-2 text-right text-xs">運費</th>
-                  <th className="border p-2 text-right text-xs">金額</th>
-                  <th className="border p-2 text-left text-xs">備註</th>
+                  <th className="border p-1 text-left">日期</th>
+                  <th className="border p-1 text-left">類型</th>
+                  <th className="border p-1 text-left">商品名稱</th>
+                  <th className="border p-1 text-left">規格</th>
+                  <th className="border p-1 text-right">數量</th>
+                  <th className="border p-1 text-right">單價</th>
+                  <th className="border p-1 text-right">運費</th>
+                  <th className="border p-1 text-right">金額</th>
+                  <th className="border p-1 text-left">備註</th>
                 </tr>
               </thead>
               <tbody>
@@ -175,25 +175,25 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
                 ) : (
                   data.items.map((item, idx) => (
                     <tr key={idx}>
-                      <td className="border p-1.5 text-xs">{formatDate(item.date)}</td>
-                      <td className="border p-1.5 text-xs">{getOrderTypeLabel(item.type)}</td>
-                      <td className="border p-1.5 text-xs font-medium" style={{ wordBreak: 'break-word', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                      <td className="border p-1">{formatDate(item.date)}</td>
+                      <td className="border p-1">{getOrderTypeLabel(item.type)}</td>
+                      <td className="border p-1 font-medium" style={{ whiteSpace: 'normal', wordBreak: 'normal', overflowWrap: 'break-word', lineHeight: 1.4 }}>
                         {item.product_name || '-'}
                       </td>
-                      <td className="border p-1.5 text-xs text-muted-foreground" style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                      <td className="border p-1 text-muted-foreground" style={{ whiteSpace: 'normal', wordBreak: 'normal', overflowWrap: 'break-word', lineHeight: 1.4 }}>
                         {item.spec || '-'}
                       </td>
-                      <td className={`border p-1.5 text-xs text-right ${item.quantity < 0 ? 'text-destructive' : ''}`}>
+                      <td className={`border p-1 text-right ${item.quantity < 0 ? 'text-destructive' : ''}`}>
                         {item.quantity.toLocaleString()}
                       </td>
-                      <td className="border p-1.5 text-xs text-right">{formatCurrency(item.unit_price)}</td>
-                      <td className={`border p-1.5 text-xs text-right ${item.shipping_fee < 0 ? 'text-destructive' : ''}`}>
+                      <td className="border p-1 text-right">{formatCurrency(item.unit_price)}</td>
+                      <td className={`border p-1 text-right ${item.shipping_fee < 0 ? 'text-destructive' : ''}`}>
                         {item.shipping_fee !== 0 ? formatCurrency(item.shipping_fee) : '-'}
                       </td>
-                      <td className={`border p-1.5 text-xs text-right font-medium ${item.amount < 0 ? 'text-destructive' : ''}`}>
+                      <td className={`border p-1 text-right font-medium ${item.amount < 0 ? 'text-destructive' : ''}`}>
                         {formatCurrency(item.amount)}
                       </td>
-                      <td className="border p-1.5 text-xs text-muted-foreground" style={{ wordBreak: 'break-word', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                      <td className="border p-1 text-muted-foreground" style={{ whiteSpace: 'normal', wordBreak: 'normal', overflowWrap: 'break-word', lineHeight: 1.4 }}>
                         {item.note && item.note.trim() ? item.note : '-'}
                       </td>
                     </tr>
