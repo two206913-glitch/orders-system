@@ -158,6 +158,76 @@ export async function createReceiptWithSettlement(data: {
   return receipt
 }
 
+// 新增付款並結清指定訂單（供應商）
+export async function createPaymentWithSettlement(data: {
+  supplier_name: string
+  amount: number
+  payment_method: string | null
+  date: string
+  note: string | null
+  settle_order_ids: string[]
+}) {
+  const supabase = await createClient()
+
+  // 1. 新增付款紀錄到 payments 表
+  const { data: payment, error: paymentError } = await supabase
+    .from('payments')
+    .insert({
+      type: 'payment',
+      party_type: 'supplier',
+      party_name: data.supplier_name,
+      supplier_name: data.supplier_name,
+      amount: data.amount,
+      date: data.date,
+      payment_method: data.payment_method,
+      note: data.note,
+    })
+    .select()
+    .single()
+
+  if (paymentError) {
+    console.error('Error creating payment:', paymentError)
+    throw new Error(`付款記錄失敗: ${paymentError.message}`)
+  }
+
+  // 2. 如果有勾選訂單，將這些訂單標記為已結清，並記錄關聯
+  if (data.settle_order_ids.length > 0) {
+    // 更新訂單為已結清
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({
+        is_settled: true,
+        settled_at: new Date().toISOString(),
+      })
+      .in('id', data.settle_order_ids)
+
+    if (updateError) {
+      console.error('Error settling orders:', updateError)
+      throw new Error(`訂單結清失敗: ${updateError.message}`)
+    }
+
+    // 新增 payment_settlements 關聯記錄
+    const settlementRecords = data.settle_order_ids.map(orderId => ({
+      payment_id: payment.id,
+      order_id: orderId,
+    }))
+
+    const { error: settlementError } = await supabase
+      .from('payment_settlements')
+      .insert(settlementRecords)
+
+    if (settlementError) {
+      console.error('Error creating payment settlement records:', settlementError)
+      // 不拋出錯誤，因為主要功能已完成
+    }
+  }
+
+  // 3. 更新訂單付款狀態
+  await updateOrderPaymentStatus(supabase, data.supplier_name, 'payment')
+
+  return payment
+}
+
 // 更新訂單付款狀態：根據收付款紀錄與訂單金額比對
 async function updateOrderPaymentStatus(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -254,6 +324,26 @@ export async function deletePayment(id: string, type: 'receipt' | 'payment') {
       .from('receipt_settlements')
       .select('order_id')
       .eq('receipt_id', id)
+
+    // 還原這些訂單的結清狀態
+    if (settlements && settlements.length > 0) {
+      const orderIds = settlements.map(s => s.order_id)
+      await supabase
+        .from('orders')
+        .update({
+          is_settled: false,
+          settled_at: null,
+        })
+        .in('id', orderIds)
+    }
+  }
+
+  // 如果是付款，先查詢該付款結清過的訂單（從 payment_settlements 表）
+  if (type === 'payment') {
+    const { data: settlements } = await supabase
+      .from('payment_settlements')
+      .select('order_id')
+      .eq('payment_id', id)
 
     // 還原這些訂單的結清狀態
     if (settlements && settlements.length > 0) {
