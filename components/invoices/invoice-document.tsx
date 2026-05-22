@@ -61,21 +61,11 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
             .info-label { font-size: 10px; color: #666; margin-bottom: 3px; }
             .info-value { font-weight: bold; font-size: 11px; }
             table { width: 100%; border-collapse: collapse; margin-bottom: 15px; table-layout: fixed; }
-            th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: 10px; word-break: break-word; }
+            th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: 10px; word-break: break-word; white-space: normal; overflow-wrap: anywhere; }
             th { background: #f5f5f5; font-weight: 600; }
             .text-right { text-align: right; }
             .text-center { text-align: center; }
             .negative { color: #dc2626; }
-            .col-date { width: 65px; }
-            .col-type { width: 40px; }
-            .col-product { width: 18%; }
-            .col-spec { width: 60px; }
-            .col-qty { width: 40px; }
-            .col-price { width: 55px; }
-            .col-shipping { width: 50px; }
-            .col-amount { width: 65px; }
-            .col-settled { width: 45px; }
-            .col-note { }
             .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
             .summary-card { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 11px; }
             .summary-card h4 { font-size: 11px; margin-bottom: 8px; color: #666; }
@@ -124,7 +114,7 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
           </DialogTitle>
         </DialogHeader>
         
-        <div ref={printRef} className="bg-white p-6 overflow-x-auto">
+        <div ref={printRef} className="bg-white p-6">
           {/* 標題 */}
           <div className="header text-center mb-8">
             <h1 className="text-2xl font-bold mb-2">{title}</h1>
@@ -147,20 +137,20 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
             </div>
           </div>
           
-{/* 明細表格 */}
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse mb-6 text-sm" style={{ tableLayout: 'fixed', minWidth: '800px' }}>
+          {/* 明細表格 - 請款單和付款單使用不同欄位 */}
+          {isCustomer ? (
+            /* 請款單表格：不顯示結清欄位（給客戶看） */
+            <table className="w-full border-collapse mb-6 text-sm" style={{ tableLayout: 'fixed' }}>
               <colgroup>
-                <col style={{ width: '80px' }} />  {/* 日期 */}
-                <col style={{ width: '50px' }} />  {/* 類型 */}
-                <col style={{ width: '20%' }} />   {/* 商品名稱 */}
-                <col style={{ width: '70px' }} />  {/* 規格 */}
-                <col style={{ width: '50px' }} />  {/* 數量 */}
-                <col style={{ width: '70px' }} />  {/* 單價/成本 */}
-                <col style={{ width: '60px' }} />  {/* 運費 */}
-                <col style={{ width: '80px' }} />  {/* 金額 */}
-                <col style={{ width: '55px' }} />  {/* 結清 */}
-                <col />                             {/* 備註 - 填滿剩餘空間 */}
+                <col style={{ width: '70px' }} />   {/* 日期 */}
+                <col style={{ width: '45px' }} />   {/* 類型 */}
+                <col style={{ width: '25%' }} />    {/* 商品名稱 */}
+                <col style={{ width: '60px' }} />   {/* 規格 */}
+                <col style={{ width: '45px' }} />   {/* 數量 */}
+                <col style={{ width: '60px' }} />   {/* 單價 */}
+                <col style={{ width: '55px' }} />   {/* 運費 */}
+                <col style={{ width: '70px' }} />   {/* 金額 */}
+                <col />                              {/* 備註 - 填滿剩餘空間 */}
               </colgroup>
               <thead>
                 <tr className="bg-muted/50">
@@ -169,26 +159,25 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
                   <th className="border p-2 text-left text-xs">商品名稱</th>
                   <th className="border p-2 text-left text-xs">規格</th>
                   <th className="border p-2 text-right text-xs">數量</th>
-                  <th className="border p-2 text-right text-xs">{isCustomer ? '單價' : '成本'}</th>
+                  <th className="border p-2 text-right text-xs">單價</th>
                   <th className="border p-2 text-right text-xs">運費</th>
                   <th className="border p-2 text-right text-xs">金額</th>
-                  <th className="border p-2 text-center text-xs">結清</th>
                   <th className="border p-2 text-left text-xs">備註</th>
                 </tr>
               </thead>
               <tbody>
                 {data.items.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="border p-8 text-center text-muted-foreground">
+                    <td colSpan={9} className="border p-8 text-center text-muted-foreground">
                       此期間無交易紀錄
                     </td>
                   </tr>
                 ) : (
                   data.items.map((item, idx) => (
-                    <tr key={idx} className={item.is_settled ? 'bg-success/5' : ''}>
+                    <tr key={idx}>
                       <td className="border p-1.5 text-xs">{formatDate(item.date)}</td>
                       <td className="border p-1.5 text-xs">{getOrderTypeLabel(item.type)}</td>
-                      <td className="border p-1.5 text-xs font-medium" style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                      <td className="border p-1.5 text-xs font-medium" style={{ wordBreak: 'break-word', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
                         {item.product_name || '-'}
                       </td>
                       <td className="border p-1.5 text-xs text-muted-foreground" style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>
@@ -204,14 +193,7 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
                       <td className={`border p-1.5 text-xs text-right font-medium ${item.amount < 0 ? 'text-destructive' : ''}`}>
                         {formatCurrency(item.amount)}
                       </td>
-                      <td className="border p-1.5 text-xs text-center">
-                        {item.is_settled ? (
-                          <span className="text-success text-xs">已結清</span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">未結清</span>
-                        )}
-                      </td>
-                      <td className="border p-1.5 text-xs text-muted-foreground" style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                      <td className="border p-1.5 text-xs text-muted-foreground" style={{ wordBreak: 'break-word', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
                         {item.note && item.note.trim() ? item.note : '-'}
                       </td>
                     </tr>
@@ -219,12 +201,86 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
                 )}
               </tbody>
             </table>
-          </div>
+          ) : (
+            /* 付款單表格：顯示結清欄位（內部管理） */
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse mb-6 text-sm" style={{ tableLayout: 'fixed', minWidth: '800px' }}>
+                <colgroup>
+                  <col style={{ width: '80px' }} />  {/* 日期 */}
+                  <col style={{ width: '50px' }} />  {/* 類型 */}
+                  <col style={{ width: '20%' }} />   {/* 商品名稱 */}
+                  <col style={{ width: '70px' }} />  {/* 規格 */}
+                  <col style={{ width: '50px' }} />  {/* 數量 */}
+                  <col style={{ width: '70px' }} />  {/* 成本 */}
+                  <col style={{ width: '60px' }} />  {/* 運費 */}
+                  <col style={{ width: '80px' }} />  {/* 金額 */}
+                  <col style={{ width: '55px' }} />  {/* 結清 */}
+                  <col />                             {/* 備註 - 填滿剩餘空間 */}
+                </colgroup>
+                <thead>
+                  <tr className="bg-muted/50">
+                    <th className="border p-2 text-left text-xs">日期</th>
+                    <th className="border p-2 text-left text-xs">類型</th>
+                    <th className="border p-2 text-left text-xs">商品名稱</th>
+                    <th className="border p-2 text-left text-xs">規格</th>
+                    <th className="border p-2 text-right text-xs">數量</th>
+                    <th className="border p-2 text-right text-xs">成本</th>
+                    <th className="border p-2 text-right text-xs">運費</th>
+                    <th className="border p-2 text-right text-xs">金額</th>
+                    <th className="border p-2 text-center text-xs">結清</th>
+                    <th className="border p-2 text-left text-xs">備註</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.items.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="border p-8 text-center text-muted-foreground">
+                        此期間無交易紀錄
+                      </td>
+                    </tr>
+                  ) : (
+                    data.items.map((item, idx) => (
+                      <tr key={idx} className={item.is_settled ? 'bg-success/5' : ''}>
+                        <td className="border p-1.5 text-xs">{formatDate(item.date)}</td>
+                        <td className="border p-1.5 text-xs">{getOrderTypeLabel(item.type)}</td>
+                        <td className="border p-1.5 text-xs font-medium" style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                          {item.product_name || '-'}
+                        </td>
+                        <td className="border p-1.5 text-xs text-muted-foreground" style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                          {item.spec || '-'}
+                        </td>
+                        <td className={`border p-1.5 text-xs text-right ${item.quantity < 0 ? 'text-destructive' : ''}`}>
+                          {item.quantity.toLocaleString()}
+                        </td>
+                        <td className="border p-1.5 text-xs text-right">{formatCurrency(item.unit_price)}</td>
+                        <td className={`border p-1.5 text-xs text-right ${item.shipping_fee < 0 ? 'text-destructive' : ''}`}>
+                          {item.shipping_fee !== 0 ? formatCurrency(item.shipping_fee) : '-'}
+                        </td>
+                        <td className={`border p-1.5 text-xs text-right font-medium ${item.amount < 0 ? 'text-destructive' : ''}`}>
+                          {formatCurrency(item.amount)}
+                        </td>
+                        <td className="border p-1.5 text-xs text-center">
+                          {item.is_settled ? (
+                            <span className="text-success text-xs">已結清</span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">未結清</span>
+                          )}
+                        </td>
+                        <td className="border p-1.5 text-xs text-muted-foreground" style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                          {item.note && item.note.trim() ? item.note : '-'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
           
           {/* 彙總區塊 */}
           <div className="grid grid-cols-2 gap-6">
             <div className="p-4 border rounded-lg">
-              <h4 className="text-sm font-semibold text-muted-foreground mb-4">本期彙總（未結清）</h4>
+              <h4 className="text-sm font-semibold text-muted-foreground mb-4">本期彙總</h4>
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">{isCustomer ? '銷貨小計' : '進貨小計'}</span>
@@ -240,12 +296,6 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
                   <span className="text-muted-foreground">{isCustomer ? '銷退合計' : '進退合計'}</span>
                   <span className="font-medium text-destructive">-{formatCurrency(returnTotal ?? 0)}</span>
                 </div>
-                {isCustomer && customerData?.settled_total && customerData.settled_total > 0 && (
-                  <div className="flex justify-between text-success">
-                    <span>本期已結清</span>
-                    <span className="font-medium">{formatCurrency(customerData.settled_total)}</span>
-                  </div>
-                )}
                 <div className="border-t pt-2 mt-2 flex justify-between">
                   <span className="font-semibold">{isCustomer ? '本期應收' : '本期應付'}</span>
                   <span className="font-bold text-lg">{formatCurrency(netTotal ?? 0)}</span>
@@ -254,18 +304,18 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
             </div>
             
             <div className={`p-4 border rounded-lg ${isPeriodSettled ? 'border-success/50 bg-success/5' : 'border-warning/50 bg-warning/5'}`}>
-              <h4 className="text-sm font-semibold text-muted-foreground mb-4">{isCustomer ? '收款狀態' : '本期付款摘要'}</h4>
+              <h4 className="text-sm font-semibold text-muted-foreground mb-4">{isCustomer ? '本期收款摘要' : '本期付款摘要'}</h4>
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">{isCustomer ? '累計已收' : '本期應付'}</span>
-                  <span className="font-medium">{formatCurrency(isCustomer ? (paidAmount ?? 0) : (netTotal ?? 0))}</span>
+                  <span className="text-muted-foreground">{isCustomer ? '本期應收' : '本期應付'}</span>
+                  <span className="font-medium">{formatCurrency(netTotal ?? 0)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">{isCustomer ? '' : '本期已付'}</span>
-                  {isCustomer ? null : <span className="font-medium text-success">{formatCurrency(paidAmount ?? 0)}</span>}
+                  <span className="text-muted-foreground">{isCustomer ? '本期已收' : '本期已付'}</span>
+                  <span className="font-medium text-success">{formatCurrency(paidAmount ?? 0)}</span>
                 </div>
                 <div className="border-t pt-2 mt-2 flex justify-between">
-                  <span className="font-semibold">{isCustomer ? '未收金額' : '本期未付'}</span>
+                  <span className="font-semibold">{isCustomer ? '本期未收' : '本期未付'}</span>
                   <span className={`font-bold text-lg ${(pendingAmount ?? 0) > 0 ? 'text-warning' : 'text-success'}`}>
                     {formatCurrency(pendingAmount ?? 0)}
                   </span>
