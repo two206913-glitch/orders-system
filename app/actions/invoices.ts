@@ -38,13 +38,12 @@ export interface SupplierInvoice {
   date_from: string
   date_to: string
   items: InvoiceItem[]
-  purchase_total: number  // 進貨小計（含運費）
-  shipping_total: number  // 運費合計
-  return_total: number    // 進退合計
-  net_total: number       // 應付總額（淨額）
-  paid_amount: number     // 已付金額
-  pending_amount: number  // 未付金額
-  is_settled: boolean     // 是否已結清
+  purchase_total: number    // 本期進貨小計
+  shipping_total: number    // 本期運費合計
+  return_total: number      // 本期進退合計
+  net_total: number         // 本期應付總額（淨額）
+  period_paid: number       // 本期已付（已結清訂單金額）
+  period_pending: number    // 本期未付
 }
 
 // 取得所有客戶列表（有銷貨紀錄的）
@@ -242,10 +241,10 @@ export async function getSupplierInvoice(
 ): Promise<SupplierInvoice> {
   const supabase = await createClient()
   
-  // 取得該供應商在日期區間內的���貨和進退訂單
+  // 取得該供應商在日期區間內的進貨和進退訂單（包含已結清與未結清）
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, date, type, product_name, spec, quantity, unit_price, shipping_fee, cost, note')
+    .select('id, date, type, product_name, spec, quantity, unit_price, shipping_fee, cost, note, is_settled, settled_at')
     .eq('supplier', supplierName)
     .in('type', ['purchase', 'purchase_return'])
     .gte('date', dateFrom)
@@ -261,32 +260,13 @@ export async function getSupplierInvoice(
         .in('order_id', orderIds)
     : { data: [] }
   
-  // 取得該供應商的所有付款紀錄（從 payments 表，用 supplier_name 欄位）
-  const { data: payments } = await supabase
-    .from('payments')
-    .select('amount')
-    .eq('supplier_name', supplierName)
-  
-  // 取得該供應商的所有訂單（用於計算總應付）
-  const { data: allOrders } = await supabase
-    .from('orders')
-    .select('id, type, cost, shipping_fee')
-    .eq('supplier', supplierName)
-    .in('type', ['purchase', 'purchase_return'])
-  
-  // 取得所有訂單的 order_items
-  const allOrderIds = allOrders?.map(o => o.id) || []
-  const { data: allOrderItems } = allOrderIds.length > 0
-    ? await supabase
-        .from('order_items')
-        .select('order_id, subtotal')
-        .in('order_id', allOrderIds)
-    : { data: [] }
-  
   // 建立 items：優先從 order_items 取得，否則用 orders 的舊欄位
+  // 每筆 item 包含該訂單的 is_settled 狀態
   const items: InvoiceItem[] = (orders || []).flatMap(order => {
     const orderItemsForThis = orderItems?.filter(item => item.order_id === order.id) || []
     const shippingFee = order.shipping_fee || 0
+    const isSettled = order.is_settled === true
+    const settledAt = order.settled_at || null
     
     if (orderItemsForThis.length > 0) {
       // 有 order_items：每個 item 獨立顯示
@@ -300,6 +280,7 @@ export async function getSupplierInvoice(
         
         return {
           id: `${order.id}-${idx}`,
+          order_id: order.id,
           date: order.date || '',
           type: order.type || 'purchase',
           product_name: item.product_name || '',
@@ -309,6 +290,8 @@ export async function getSupplierInvoice(
           shipping_fee: idx === 0 ? (order.type === 'purchase_return' ? -shippingFee : shippingFee) : 0,
           amount: order.type === 'purchase_return' ? -amount : amount,  // 使用 subtotal
           note: idx === 0 ? order.note : null,
+          is_settled: isSettled,
+          settled_at: settledAt,
         }
       })
     } else {
@@ -318,6 +301,7 @@ export async function getSupplierInvoice(
       
       return [{
         id: order.id,
+        order_id: order.id,
         date: order.date || '',
         type: order.type || 'purchase',
         product_name: '(舊資料格式)',
@@ -327,11 +311,13 @@ export async function getSupplierInvoice(
         shipping_fee: order.type === 'purchase_return' ? -shippingFee : shippingFee,
         amount: order.type === 'purchase_return' ? -cost : cost,
         note: order.note,
+        is_settled: isSettled,
+        settled_at: settledAt,
       }]
     }
   })
   
-  // 計算該期間的進貨和進退
+  // 計算本期進貨和進退（所有訂單，不論結清狀態）
   const purchase_total = items
     .filter(i => i.type === 'purchase')
     .reduce((sum, i) => sum + i.amount, 0)
@@ -344,30 +330,25 @@ export async function getSupplierInvoice(
     .filter(i => i.type === 'purchase_return')
     .reduce((sum, i) => sum + Math.abs(i.amount), 0)
   
+  // 本期應付 = 進貨 - 進退
   const net_total = purchase_total - return_total
   
-  // 計算總已付金額
-  const paid_amount = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0
-  
-  // 計算總應付（從 order_items 加總，若無則用 cost）
-  const total_payable = allOrders?.reduce((sum, o) => {
-    // 檢查是否有 order_items
-    const itemsForOrder = allOrderItems?.filter(item => item.order_id === o.id) || []
-    let orderAmount: number
-    
-    if (itemsForOrder.length > 0) {
-      // 有 order_items，用 subtotal 加總 + shipping_fee
-      orderAmount = itemsForOrder.reduce((s, item) => s + (item.subtotal || 0), 0) + (o.shipping_fee || 0)
-    } else {
-      // 無 order_items，用 cost
-      orderAmount = o.cost || 0
+  // 本期已付 = 已結清訂單的金額加總（使用 order_id 去重複）
+  const settledOrderIds = new Set<string>()
+  const period_paid = items.reduce((sum, item) => {
+    if (item.is_settled && !settledOrderIds.has(item.order_id)) {
+      settledOrderIds.add(item.order_id)
+      // 找出同一訂單的所有 items 金額加總
+      const orderAmount = items
+        .filter(i => i.order_id === item.order_id)
+        .reduce((s, i) => s + i.amount, 0)
+      return sum + orderAmount
     }
-    
-    return sum + (o.type === 'purchase_return' ? -orderAmount : orderAmount)
-  }, 0) || 0
+    return sum
+  }, 0)
   
-  // 未付金額 = 總應付 - 已付
-  const pending_amount = total_payable - paid_amount
+  // 本期未付 = 本期應付 - 本期已付
+  const period_pending = Math.max(0, net_total - period_paid)
   
   return {
     supplier_name: supplierName,
@@ -378,9 +359,8 @@ export async function getSupplierInvoice(
     shipping_total,
     return_total,
     net_total,
-    paid_amount,
-    pending_amount: Math.max(0, pending_amount),
-    is_settled: pending_amount <= 0,
+    period_paid,
+    period_pending,
   }
 }
 
