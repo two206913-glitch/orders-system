@@ -32,9 +32,11 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
   const shippingTotal = isCustomer ? customerData?.shipping_total : supplierData?.shipping_total
   const returnTotal = isCustomer ? customerData?.return_total : supplierData?.return_total
   const netTotal = isCustomer ? customerData?.net_total : supplierData?.net_total
-  const paidAmount = isCustomer ? customerData?.received_amount : supplierData?.paid_amount
-  const pendingAmount = isCustomer ? customerData?.pending_amount : supplierData?.pending_amount
-  const isSettled = isCustomer ? customerData?.is_settled : supplierData?.is_settled
+  // 付款單使用 period_paid/period_pending，請款單使用 received_amount/pending_amount
+  const paidAmount = isCustomer ? customerData?.received_amount : supplierData?.period_paid
+  const pendingAmount = isCustomer ? customerData?.pending_amount : supplierData?.period_pending
+  // 付款單不再使用 is_settled，改用 period_pending 判斷
+  const isPeriodSettled = isCustomer ? customerData?.is_settled : (supplierData?.period_pending ?? 0) <= 0
   
   const handlePrint = () => {
     const printContent = printRef.current
@@ -149,7 +151,7 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
                 <th className="border p-2 text-right">運費</th>
                 <th className="border p-2 text-right">金額</th>
                 <th className="border p-2 text-center">結清</th>
-                <th className="border p-2 text-left">備註</th>
+                <th className="border p-2 text-left">���註</th>
               </tr>
             </thead>
             <tbody>
@@ -222,15 +224,19 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
               </div>
             </div>
             
-            <div className={`p-4 border rounded-lg ${isSettled ? 'border-success/50 bg-success/5' : 'border-warning/50 bg-warning/5'}`}>
-              <h4 className="text-sm font-semibold text-muted-foreground mb-4">{isCustomer ? '收款狀態' : '付款狀態'}</h4>
+            <div className={`p-4 border rounded-lg ${isPeriodSettled ? 'border-success/50 bg-success/5' : 'border-warning/50 bg-warning/5'}`}>
+              <h4 className="text-sm font-semibold text-muted-foreground mb-4">{isCustomer ? '收款狀態' : '本期付款摘要'}</h4>
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">{isCustomer ? '累計已收' : '累計已付'}</span>
-                  <span className="font-medium text-success">{formatCurrency(paidAmount ?? 0)}</span>
+                  <span className="text-muted-foreground">{isCustomer ? '累計已收' : '本期應付'}</span>
+                  <span className="font-medium">{formatCurrency(isCustomer ? (paidAmount ?? 0) : (netTotal ?? 0))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{isCustomer ? '' : '本期已付'}</span>
+                  {isCustomer ? null : <span className="font-medium text-success">{formatCurrency(paidAmount ?? 0)}</span>}
                 </div>
                 <div className="border-t pt-2 mt-2 flex justify-between">
-                  <span className="font-semibold">{isCustomer ? '未收金額' : '未付金額'}</span>
+                  <span className="font-semibold">{isCustomer ? '未收金額' : '本期未付'}</span>
                   <span className={`font-bold text-lg ${(pendingAmount ?? 0) > 0 ? 'text-warning' : 'text-success'}`}>
                     {formatCurrency(pendingAmount ?? 0)}
                   </span>
