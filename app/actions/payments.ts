@@ -173,6 +173,9 @@ export async function createPaymentWithSettlement(data: {
   const { data: payment, error: paymentError } = await supabase
     .from('payments')
     .insert({
+      type: 'payment',
+      party_type: 'supplier',
+      party_name: data.supplier_name,
       supplier_name: data.supplier_name,
       amount: data.amount,
       date: data.date,
