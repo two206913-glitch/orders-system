@@ -152,30 +152,33 @@ export async function getCustomerInvoice(
   })
   
   // 計算本期銷貨和銷退（所有訂單，不論結清狀態）
+  // 重要：sale_total 必須包含商品小計 + 運費
   const sale_total = items
     .filter(i => i.type === 'sale')
-    .reduce((sum, i) => sum + i.amount, 0)
+    .reduce((sum, i) => sum + i.amount + i.shipping_fee, 0)
   
   const shipping_total = items
     .filter(i => i.type === 'sale')
     .reduce((sum, i) => sum + i.shipping_fee, 0)
   
+  // 銷退合計也要包含運費
   const return_total = items
     .filter(i => i.type === 'sale_return')
-    .reduce((sum, i) => sum + Math.abs(i.amount), 0)
+    .reduce((sum, i) => sum + Math.abs(i.amount) + Math.abs(i.shipping_fee), 0)
   
   // 本期應收 = 銷貨 - 銷退
   const net_total = sale_total - return_total
   
   // 本期已收 = 已結清訂單的金額加總（使用 order_id 去重複）
+  // 重要：訂單金額必須包含商品小計 + 運費
   const settledOrderIds = new Set<string>()
   const period_received = items.reduce((sum, item) => {
     if (item.is_settled && !settledOrderIds.has(item.order_id)) {
       settledOrderIds.add(item.order_id)
-      // 找出同一訂單的所有 items 金額加總
+      // 找出同一訂單的所有 items 金額加總（包含運費）
       const orderAmount = items
         .filter(i => i.order_id === item.order_id)
-        .reduce((s, i) => s + i.amount, 0)
+        .reduce((s, i) => s + i.amount + i.shipping_fee, 0)
       return sum + orderAmount
     }
     return sum
@@ -283,30 +286,33 @@ export async function getSupplierInvoice(
   })
   
   // 計算本期進貨和進退（所有訂單，不論結清狀態）
+  // 重要：purchase_total 必須包含商品小計 + 運費
   const purchase_total = items
     .filter(i => i.type === 'purchase')
-    .reduce((sum, i) => sum + i.amount, 0)
+    .reduce((sum, i) => sum + i.amount + i.shipping_fee, 0)
   
   const shipping_total = items
     .filter(i => i.type === 'purchase')
     .reduce((sum, i) => sum + i.shipping_fee, 0)
   
+  // 進退合計也要包含運費
   const return_total = items
     .filter(i => i.type === 'purchase_return')
-    .reduce((sum, i) => sum + Math.abs(i.amount), 0)
+    .reduce((sum, i) => sum + Math.abs(i.amount) + Math.abs(i.shipping_fee), 0)
   
   // 本期應付 = 進貨 - 進退
   const net_total = purchase_total - return_total
   
   // 本期已付 = 已結清訂單的金額加總（使用 order_id 去重複）
+  // 重要：訂單金額必須包含商品小計 + 運費
   const settledOrderIds = new Set<string>()
   const period_paid = items.reduce((sum, item) => {
     if (item.is_settled && !settledOrderIds.has(item.order_id)) {
       settledOrderIds.add(item.order_id)
-      // 找出同一訂單的所有 items 金額加總
+      // 找出同一訂單的所有 items 金額加總（包含運費）
       const orderAmount = items
         .filter(i => i.order_id === item.order_id)
-        .reduce((s, i) => s + i.amount, 0)
+        .reduce((s, i) => s + i.amount + i.shipping_fee, 0)
       return sum + orderAmount
     }
     return sum
