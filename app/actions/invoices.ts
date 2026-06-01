@@ -23,9 +23,11 @@ export interface CustomerInvoice {
   date_from: string
   date_to: string
   items: InvoiceItem[]
-  sale_total: number      // 本期銷貨小計（含運費）
+  sale_product_subtotal: number  // 純商品金額（不含運費）- 顯示用
+  sale_total: number      // 本期銷貨小計（含運費）- 計算用
   shipping_total: number  // 本期運費合計
-  return_total: number    // 本期銷退合計
+  return_total: number    // 本期銷退合計（含運費）
+  return_product_subtotal: number  // 純銷退商品金額（不含運費）- 顯示用
   net_total: number       // 本期應收總額（淨額）
   period_received: number // 本期已收（已結清訂單金額）
   period_pending: number  // 本期未收
@@ -36,9 +38,11 @@ export interface SupplierInvoice {
   date_from: string
   date_to: string
   items: InvoiceItem[]
-  purchase_total: number    // 本期進貨小計
+  purchase_product_subtotal: number  // 純商品成本（不含運費）- 顯示用
+  purchase_total: number    // 本期進貨小計（含運費）- 計算用
   shipping_total: number    // 本期運費合計
-  return_total: number      // 本期進退合計
+  return_total: number      // 本期進退合計（含運費）
+  return_product_subtotal: number  // 純進退商品金額（不含運費）- 顯示用
   net_total: number         // 本期應付總額（淨額）
   period_paid: number       // 本期已付（已結清訂單金額）
   period_pending: number    // 本期未付
@@ -152,7 +156,12 @@ export async function getCustomerInvoice(
   })
   
   // 計算本期銷貨和銷退（所有訂單，不論結清狀態）
-  // 重要：sale_total 必須包含商品小計 + 運費
+  // sale_product_subtotal = 純商品金額（不含運費）- 顯示用
+  const sale_product_subtotal = items
+    .filter(i => i.type === 'sale')
+    .reduce((sum, i) => sum + i.amount, 0)
+  
+  // sale_total = 商品 + 運費（計算用）
   const sale_total = items
     .filter(i => i.type === 'sale')
     .reduce((sum, i) => sum + i.amount + i.shipping_fee, 0)
@@ -161,7 +170,12 @@ export async function getCustomerInvoice(
     .filter(i => i.type === 'sale')
     .reduce((sum, i) => sum + i.shipping_fee, 0)
   
-  // 銷退合計也要包含運費
+  // return_product_subtotal = 純銷退商品金額（不含運費）- 顯示用
+  const return_product_subtotal = items
+    .filter(i => i.type === 'sale_return')
+    .reduce((sum, i) => sum + Math.abs(i.amount), 0)
+  
+  // return_total = 銷退商品 + 運費（計算用）
   const return_total = items
     .filter(i => i.type === 'sale_return')
     .reduce((sum, i) => sum + Math.abs(i.amount) + Math.abs(i.shipping_fee), 0)
@@ -192,9 +206,11 @@ export async function getCustomerInvoice(
     date_from: dateFrom,
     date_to: dateTo,
     items,
+    sale_product_subtotal,
     sale_total,
     shipping_total,
     return_total,
+    return_product_subtotal,
     net_total,
     period_received,
     period_pending,
@@ -286,7 +302,12 @@ export async function getSupplierInvoice(
   })
   
   // 計算本期進貨和進退（所有訂單，不論結清狀態）
-  // 重要：purchase_total 必須包含商品小計 + 運費
+  // purchase_product_subtotal = 純商品成本（不含運費）- 顯示用
+  const purchase_product_subtotal = items
+    .filter(i => i.type === 'purchase')
+    .reduce((sum, i) => sum + i.amount, 0)
+  
+  // purchase_total = 商品成本 + 運費（計算用）
   const purchase_total = items
     .filter(i => i.type === 'purchase')
     .reduce((sum, i) => sum + i.amount + i.shipping_fee, 0)
@@ -295,7 +316,12 @@ export async function getSupplierInvoice(
     .filter(i => i.type === 'purchase')
     .reduce((sum, i) => sum + i.shipping_fee, 0)
   
-  // 進退合計也要包含運費
+  // return_product_subtotal = 純進退商品金額（不含運費）- 顯示用
+  const return_product_subtotal = items
+    .filter(i => i.type === 'purchase_return')
+    .reduce((sum, i) => sum + Math.abs(i.amount), 0)
+  
+  // return_total = 進退商品 + 運費（計算用）
   const return_total = items
     .filter(i => i.type === 'purchase_return')
     .reduce((sum, i) => sum + Math.abs(i.amount) + Math.abs(i.shipping_fee), 0)
@@ -326,9 +352,11 @@ export async function getSupplierInvoice(
     date_from: dateFrom,
     date_to: dateTo,
     items,
+    purchase_product_subtotal,
     purchase_total,
     shipping_total,
     return_total,
+    return_product_subtotal,
     net_total,
     period_paid,
     period_pending,

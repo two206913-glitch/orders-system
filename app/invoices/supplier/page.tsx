@@ -122,9 +122,9 @@ export default function SupplierInvoicePage() {
     // 加入彙總行
     const summaryRows = [
       [],
-      ['', '', '', '', '', '', '', '進貨小計', invoice.purchase_total.toString()],
-      ['', '', '', '', '', '', '', '含運費', invoice.shipping_total.toString()],
-      ['', '', '', '', '', '', '', '進退合計', (-invoice.return_total).toString()],
+      ['', '', '', '', '', '', '', '進貨小計', invoice.purchase_product_subtotal.toString()],
+      ['', '', '', '', '', '', '', '運費小計', invoice.shipping_total.toString()],
+      ['', '', '', '', '', '', '', '進退合計', (-invoice.return_product_subtotal).toString()],
       ['', '', '', '', '', '', '', '本期應付', invoice.net_total.toString()],
       ['', '', '', '', '', '', '', '本期已付', invoice.period_paid.toString()],
       ['', '', '', '', '', '', '', '本期未付', invoice.period_pending.toString()],
@@ -299,18 +299,20 @@ export default function SupplierInvoicePage() {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">進貨小計</span>
-                      <span className="font-medium">{formatCurrency(invoice.purchase_total)}</span>
+                      <span className="font-medium">{formatCurrency(invoice.purchase_product_subtotal)}</span>
                     </div>
                     {invoice.shipping_total > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">含運費</span>
-                        <span className="font-medium text-primary">{formatCurrency(invoice.shipping_total)}</span>
+                        <span className="text-muted-foreground">運費小計</span>
+                        <span className="font-medium">{formatCurrency(invoice.shipping_total)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">進退合計</span>
-                      <span className="font-medium text-destructive">-{formatCurrency(invoice.return_total)}</span>
-                    </div>
+                    {invoice.return_product_subtotal > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">進退合計</span>
+                        <span className="font-medium text-destructive">-{formatCurrency(invoice.return_product_subtotal)}</span>
+                      </div>
+                    )}
                     <div className="border-t pt-2 flex justify-between">
                       <span className="font-semibold">本期應付</span>
                       <span className="font-bold text-lg">{formatCurrency(invoice.net_total)}</span>

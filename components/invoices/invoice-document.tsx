@@ -28,9 +28,11 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
   
   const partyName = isCustomer ? customerData?.customer_name : supplierData?.supplier_name
   const title = isCustomer ? '請款單' : '付款單'
-  const subTotal = isCustomer ? customerData?.sale_total : supplierData?.purchase_total
+  // 顯示用：純商品小計（不含運費）
+  const productSubtotal = isCustomer ? customerData?.sale_product_subtotal : supplierData?.purchase_product_subtotal
   const shippingTotal = isCustomer ? customerData?.shipping_total : supplierData?.shipping_total
-  const returnTotal = isCustomer ? customerData?.return_total : supplierData?.return_total
+  // 顯示用：純退貨小計（不含運費）
+  const returnProductSubtotal = isCustomer ? customerData?.return_product_subtotal : supplierData?.return_product_subtotal
   const netTotal = isCustomer ? customerData?.net_total : supplierData?.net_total
   // 請款單和付款單都使用 period_* 欄位
   const paidAmount = isCustomer ? customerData?.period_received : supplierData?.period_paid
@@ -284,18 +286,20 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">{isCustomer ? '銷貨小計' : '進貨小計'}</span>
-                  <span className="font-medium">{formatCurrency(subTotal ?? 0)}</span>
+                  <span className="font-medium">{formatCurrency(productSubtotal ?? 0)}</span>
                 </div>
                 {(shippingTotal ?? 0) > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">含運費</span>
-                    <span className="font-medium text-primary">{formatCurrency(shippingTotal ?? 0)}</span>
+                    <span className="text-muted-foreground">運費小計</span>
+                    <span className="font-medium">{formatCurrency(shippingTotal ?? 0)}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">{isCustomer ? '銷退合計' : '進退合計'}</span>
-                  <span className="font-medium text-destructive">-{formatCurrency(returnTotal ?? 0)}</span>
-                </div>
+                {(returnProductSubtotal ?? 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">{isCustomer ? '銷退合計' : '進退合計'}</span>
+                    <span className="font-medium text-destructive">-{formatCurrency(returnProductSubtotal ?? 0)}</span>
+                  </div>
+                )}
                 <div className="border-t pt-2 mt-2 flex justify-between">
                   <span className="font-semibold">{isCustomer ? '本期應收' : '本期應付'}</span>
                   <span className="font-bold text-lg">{formatCurrency(netTotal ?? 0)}</span>
