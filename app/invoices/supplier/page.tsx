@@ -106,7 +106,7 @@ export default function SupplierInvoicePage() {
       [],
     ]
     
-    const headers = ['日期', '類型', '商品名稱', '規格', '數量', '單件成本', '金額', '結清狀態']
+    const headers = ['日期', '類型', '商品名稱', '規格', '數量', '單件成本', '運費', '金額', '結清狀態']
     const rows = invoice.items.map(item => [
       formatDate(item.date),
       getOrderTypeLabel(item.type),
@@ -114,6 +114,7 @@ export default function SupplierInvoicePage() {
       item.spec || '',
       item.quantity.toString(),
       item.unit_price.toString(),
+      item.shipping_fee.toString(),
       item.amount.toString(),
       item.is_settled ? '已結清' : '未結清',
     ])
@@ -121,11 +122,12 @@ export default function SupplierInvoicePage() {
     // 加入彙總行
     const summaryRows = [
       [],
-      ['', '', '', '', '', '', '進貨小計', invoice.purchase_total.toString()],
-      ['', '', '', '', '', '', '進退合計', (-invoice.return_total).toString()],
-      ['', '', '', '', '', '', '本期應付', invoice.net_total.toString()],
-      ['', '', '', '', '', '', '本期已付', invoice.period_paid.toString()],
-      ['', '', '', '', '', '', '本期未付', invoice.period_pending.toString()],
+      ['', '', '', '', '', '', '', '進貨小計', invoice.purchase_product_subtotal.toString()],
+      ['', '', '', '', '', '', '', '運費小計', invoice.shipping_total.toString()],
+      ['', '', '', '', '', '', '', '進退合計', (-invoice.return_product_subtotal).toString()],
+      ['', '', '', '', '', '', '', '本期應付', invoice.net_total.toString()],
+      ['', '', '', '', '', '', '', '本期已付', invoice.period_paid.toString()],
+      ['', '', '', '', '', '', '', '本期未付', invoice.period_pending.toString()],
     ]
     
     const allRows = [
@@ -238,6 +240,7 @@ export default function SupplierInvoicePage() {
                     <TableHead>規格</TableHead>
                     <TableHead className="text-right">數量</TableHead>
                     <TableHead className="text-right">單件成本</TableHead>
+                    <TableHead className="text-right">運費</TableHead>
                     <TableHead className="text-right">金額</TableHead>
                     <TableHead>結清狀態</TableHead>
                   </TableRow>
@@ -245,7 +248,7 @@ export default function SupplierInvoicePage() {
                 <TableBody>
                   {invoice.items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         此期間無交易紀錄
                       </TableCell>
                     </TableRow>
@@ -264,6 +267,9 @@ export default function SupplierInvoicePage() {
                           {item.quantity.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
+                        <TableCell className={`text-right ${item.shipping_fee < 0 ? 'text-destructive' : ''}`}>
+                          {item.shipping_fee !== 0 ? formatCurrency(item.shipping_fee) : '-'}
+                        </TableCell>
                         <TableCell className={`text-right font-medium ${item.amount < 0 ? 'text-destructive' : ''}`}>
                           {formatCurrency(item.amount)}
                         </TableCell>
@@ -293,12 +299,20 @@ export default function SupplierInvoicePage() {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">進貨小計</span>
-                      <span className="font-medium">{formatCurrency(invoice.purchase_total)}</span>
+                      <span className="font-medium">{formatCurrency(invoice.purchase_product_subtotal)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">進退合計</span>
-                      <span className="font-medium text-destructive">-{formatCurrency(invoice.return_total)}</span>
-                    </div>
+                    {invoice.shipping_total > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">運費小計</span>
+                        <span className="font-medium">{formatCurrency(invoice.shipping_total)}</span>
+                      </div>
+                    )}
+                    {invoice.return_product_subtotal > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">進退合計</span>
+                        <span className="font-medium text-destructive">-{formatCurrency(invoice.return_product_subtotal)}</span>
+                      </div>
+                    )}
                     <div className="border-t pt-2 flex justify-between">
                       <span className="font-semibold">本期應付</span>
                       <span className="font-bold text-lg">{formatCurrency(invoice.net_total)}</span>
