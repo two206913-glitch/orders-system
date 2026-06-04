@@ -24,10 +24,19 @@ export async function getReceivablesPayables(): Promise<{
 }> {
   const supabase = await createClient()
   
-  // 取得訂單資料
+  // 取得訂單資料（包含 shipping_fee）
   const { data: orders } = await supabase
     .from('orders')
-    .select('customer_name, supplier, total_price, cost, type')
+    .select('id, customer_name, supplier, total_price, cost, shipping_fee, type')
+  
+  // 取得所有 order_items（用於計算正確金額）
+  const orderIds = orders?.map(o => o.id) || []
+  const { data: orderItems } = orderIds.length > 0
+    ? await supabase
+        .from('order_items')
+        .select('order_id, subtotal')
+        .in('order_id', orderIds)
+    : { data: [] }
   
   // 取得收款資料（從 receipts 表，欄位為 customer_name）
   const { data: receiptsData } = await supabase
@@ -59,13 +68,16 @@ export async function getReceivablesPayables(): Promise<{
     totalPayments += p.amount || 0
   })
   
-  // 應收帳款來自客戶（銷貨用 total_price，銷退沖銷）
+  // 應收帳款來自客戶（銷貨用 total_price 或 order_items.subtotal + shipping_fee）
   const receivablesMap = new Map<string, ReceivablePayable>()
-  // 應付帳款來自供應商（進貨用 cost，進退沖銷）
+  // 應付帳款來自供應商（進貨用 order_items.subtotal + shipping_fee 或 cost + shipping_fee）
   const payablesMap = new Map<string, ReceivablePayable>()
   
   orders?.forEach((order) => {
     const type = order.type || 'sale'
+    
+    // 取得該訂單的 order_items
+    const itemsForOrder = orderItems?.filter(item => item.order_id === order.id) || []
     
     // 銷貨/銷退：影響應收帳款
     if ((type === 'sale' || type === 'sale_return') && order.customer_name) {
@@ -79,9 +91,16 @@ export async function getReceivablesPayables(): Promise<{
         order_count: 0,
       }
       
-      // 銷貨用 total_price（售價），銷退用負數沖銷
-      const amount = order.total_price || 0
-      const effectiveAmount = type === 'sale_return' ? -amount : amount
+      // 計算訂單金額：優先使用 order_items.subtotal 加總 + shipping_fee
+      let orderAmount: number
+      if (itemsForOrder.length > 0) {
+        orderAmount = itemsForOrder.reduce((s, i) => s + (i.subtotal || 0), 0) + (order.shipping_fee || 0)
+      } else {
+        // 無 order_items：使用 total_price（舊資料已包含運費）
+        orderAmount = order.total_price || 0
+      }
+      
+      const effectiveAmount = type === 'sale_return' ? -orderAmount : orderAmount
       
       item.total_amount += effectiveAmount
       item.order_count += 1
@@ -101,9 +120,16 @@ export async function getReceivablesPayables(): Promise<{
         order_count: 0,
       }
       
-      // 進貨用 cost（成本），進退用負數沖銷
-      const amount = order.cost || 0
-      const effectiveAmount = type === 'purchase_return' ? -amount : amount
+      // 計算訂單金額：優先使用 order_items.subtotal 加總 + shipping_fee
+      let orderAmount: number
+      if (itemsForOrder.length > 0) {
+        orderAmount = itemsForOrder.reduce((s, i) => s + (i.subtotal || 0), 0) + (order.shipping_fee || 0)
+      } else {
+        // 無 order_items：使用 cost + shipping_fee（舊資料）
+        orderAmount = (order.cost || 0) + (order.shipping_fee || 0)
+      }
+      
+      const effectiveAmount = type === 'purchase_return' ? -orderAmount : orderAmount
       
       item.total_amount += effectiveAmount
       item.order_count += 1

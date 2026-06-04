@@ -85,6 +85,7 @@ export async function getCustomerInvoice(
   const supabase = await createClient()
   
   // 取得該客戶在日期區間內的銷貨和銷退訂單（包含已結清與未結清）
+  // 重要：包含 total_price 作為金額主要來源
   const { data: orders } = await supabase
     .from('orders')
     .select('id, date, type, product_name, spec, quantity, unit_price, shipping_fee, total_price, note, is_settled, settled_at')
@@ -105,18 +106,38 @@ export async function getCustomerInvoice(
   
   // 建立 items：優先從 order_items 取得，否則用 orders 的舊欄位
   // 每筆 item 包含該訂單的 is_settled 狀態
+  // 重要：訂單總金額使用 orders.total_price（已含運費）
   const items: InvoiceItem[] = (orders || []).flatMap(order => {
     const orderItemsForThis = orderItems?.filter(item => item.order_id === order.id) || []
     const shippingFee = order.shipping_fee || 0
     const isSettled = order.is_settled === true
     const settledAt = order.settled_at || null
     
+    // 計算訂單總金額：優先使用 orders.total_price（已含運費）
+    // 如果 total_price 不存在或為 0，則用 order_items.subtotal 加總 + shipping_fee
+    let orderTotalAmount: number
+    if (order.total_price && order.total_price > 0) {
+      orderTotalAmount = order.total_price
+    } else {
+      // fallback: order_items.subtotal 加總 + shipping_fee
+      const itemsSubtotal = orderItemsForThis.reduce((sum, item) => sum + (item.subtotal || 0), 0)
+      orderTotalAmount = itemsSubtotal + shippingFee
+    }
+    
+    // 計算商品小計（不含運費）用於分配
+    const itemsProductSubtotal = orderItemsForThis.reduce((sum, item) => sum + (item.subtotal || 0), 0)
+    
     if (orderItemsForThis.length > 0) {
       // 有 order_items：每個 item 獨立顯示
+      // 重要修正：最後一個 item 的 amount 包含運費，確保總和等於 orderTotalAmount
       return orderItemsForThis.map((item, idx) => {
         const unitPrice = item.unit_price ?? 0
         const qty = item.quantity ?? 0
-        const amount = item.subtotal ?? (unitPrice * qty)
+        const itemSubtotal = item.subtotal ?? (unitPrice * qty)
+        
+        // 最後一個 item 包含運費
+        const isLastItem = idx === orderItemsForThis.length - 1
+        const amount = isLastItem ? (itemSubtotal + shippingFee) : itemSubtotal
         
         return {
           id: `${order.id}-${idx}`,
@@ -127,7 +148,9 @@ export async function getCustomerInvoice(
           spec: item.product_variant,
           quantity: order.type === 'sale_return' ? -qty : qty,
           unit_price: unitPrice,
-          shipping_fee: idx === 0 ? (order.type === 'sale_return' ? -shippingFee : shippingFee) : 0,
+          // 運費只在最後一個 item 顯示（參考用）
+          shipping_fee: isLastItem ? (order.type === 'sale_return' ? -shippingFee : shippingFee) : 0,
+          // 金額：最後一個 item 包含運費
           amount: order.type === 'sale_return' ? -amount : amount,
           note: idx === 0 ? order.note : null,
           is_settled: isSettled,
@@ -135,8 +158,7 @@ export async function getCustomerInvoice(
         }
       })
     } else {
-      // 無 order_items：舊訂單不顯示商品明細（只顯示訂單總額）
-      // 不再使用 orders.quantity，因為該欄位已停止更新
+      // 無 order_items：舊訂單使用 total_price 作為總金額（已含運費）
       return [{
         id: order.id,
         order_id: order.id,
@@ -146,8 +168,9 @@ export async function getCustomerInvoice(
         spec: null,
         quantity: 0,  // 不使用 orders.quantity
         unit_price: 0,
-        shipping_fee: order.type === 'sale_return' ? -(order.shipping_fee || 0) : (order.shipping_fee || 0),
-        amount: order.type === 'sale_return' ? -(order.total_price || 0) : (order.total_price || 0),
+        shipping_fee: order.type === 'sale_return' ? -shippingFee : shippingFee,
+        // 金額：使用 total_price（已含運費）
+        amount: order.type === 'sale_return' ? -orderTotalAmount : orderTotalAmount,
         note: order.note,
         is_settled: isSettled,
         settled_at: settledAt,
@@ -156,43 +179,52 @@ export async function getCustomerInvoice(
   })
   
   // 計算本期銷貨和銷退（所有訂單，不論結清狀態）
-  // sale_product_subtotal = 純商品金額（不含運費）- 顯示用
+  // sale_product_subtotal = 金額加總（已含運費）- 顯示用
   const sale_product_subtotal = items
     .filter(i => i.type === 'sale')
     .reduce((sum, i) => sum + i.amount, 0)
   
-  // sale_total = 商品 + 運費（計算用）
-  const sale_total = items
-    .filter(i => i.type === 'sale')
-    .reduce((sum, i) => sum + i.amount + i.shipping_fee, 0)
+  // sale_total = 金額加總（已含運費）
+  // 注意：現在 amount 已包含運費，不需要再加 shipping_fee
+  const sale_total = sale_product_subtotal
   
   const shipping_total = items
     .filter(i => i.type === 'sale')
     .reduce((sum, i) => sum + i.shipping_fee, 0)
   
-  // return_product_subtotal = 純銷退商品金額（不含運費）- 顯示用
+  // return_product_subtotal = 銷退金額加總（已含運費）- 顯示用
   const return_product_subtotal = items
     .filter(i => i.type === 'sale_return')
     .reduce((sum, i) => sum + Math.abs(i.amount), 0)
   
-  // return_total = 銷退商品 + 運費（計算用）
-  const return_total = items
-    .filter(i => i.type === 'sale_return')
-    .reduce((sum, i) => sum + Math.abs(i.amount) + Math.abs(i.shipping_fee), 0)
+  // return_total = 銷退金額加總（已含運費）
+  const return_total = return_product_subtotal
   
   // 本期應收 = 銷貨 - 銷退
   const net_total = sale_total - return_total
   
   // 本期已收 = 已結清訂單的金額加總（使用 order_id 去重複）
-  // 重要：訂單金額必須包含商品小計 + 運費
+  // 重要：使用 orders.total_price 作為訂單金額
   const settledOrderIds = new Set<string>()
-  const period_received = items.reduce((sum, item) => {
-    if (item.is_settled && !settledOrderIds.has(item.order_id)) {
-      settledOrderIds.add(item.order_id)
-      // 找出同一訂單的所有 items 金額加總（包含運費）
-      const orderAmount = items
-        .filter(i => i.order_id === item.order_id)
-        .reduce((s, i) => s + i.amount + i.shipping_fee, 0)
+  const period_received = (orders || []).reduce((sum, order) => {
+    if (order.is_settled && !settledOrderIds.has(order.id)) {
+      settledOrderIds.add(order.id)
+      
+      // 優先使用 orders.total_price
+      let orderAmount: number
+      if (order.total_price && order.total_price > 0) {
+        orderAmount = order.total_price
+      } else {
+        // fallback: order_items.subtotal 加總 + shipping_fee
+        const itemsForOrder = orderItems?.filter(item => item.order_id === order.id) || []
+        const itemsSubtotal = itemsForOrder.reduce((s, item) => s + (item.subtotal || 0), 0)
+        orderAmount = itemsSubtotal + (order.shipping_fee || 0)
+      }
+      
+      // 銷退訂單扣除
+      if (order.type === 'sale_return') {
+        return sum - orderAmount
+      }
       return sum + orderAmount
     }
     return sum
@@ -246,21 +278,38 @@ export async function getSupplierInvoice(
   
   // 建立 items：優先從 order_items 取得，否則用 orders 的舊欄位
   // 每筆 item 包含該訂單的 is_settled 狀態
+  // 重要：訂單總金額使用 orders.cost + shipping_fee
   const items: InvoiceItem[] = (orders || []).flatMap(order => {
     const orderItemsForThis = orderItems?.filter(item => item.order_id === order.id) || []
     const shippingFee = order.shipping_fee || 0
     const isSettled = order.is_settled === true
     const settledAt = order.settled_at || null
     
+    // 計算訂單總金額：使用 orders.cost + shipping_fee
+    // 如果 cost 不存在或為 0，則用 order_items.subtotal 加總 + shipping_fee
+    const orderCost = order.cost || 0
+    let orderTotalAmount: number
+    if (orderCost > 0) {
+      orderTotalAmount = orderCost + shippingFee
+    } else {
+      // fallback: order_items.subtotal 加總 + shipping_fee
+      const itemsSubtotal = orderItemsForThis.reduce((sum, item) => sum + (item.subtotal || 0), 0)
+      orderTotalAmount = itemsSubtotal + shippingFee
+    }
+    
     if (orderItemsForThis.length > 0) {
       // 有 order_items：每個 item 獨立顯示
-      // 重要：金額使用 subtotal（最終依據），單件成本只作為顯示參考
+      // 重要修正：最後一個 item 的 amount 包含運費，確保總和等於 orderTotalAmount
       return orderItemsForThis.map((item, idx) => {
         const qty = item.quantity ?? 0
-        // 金額直接使用 subtotal，這是使用者輸入的最終值
-        const amount = item.subtotal ?? 0
+        // 金額直接使用 subtotal
+        const itemSubtotal = item.subtotal ?? 0
         // 單件成本 = subtotal / quantity（作為顯示參考）
-        const unitCost = qty > 0 ? amount / qty : (item.cost ?? 0)
+        const unitCost = qty > 0 ? itemSubtotal / qty : (item.cost ?? 0)
+        
+        // 最後一個 item 包含運費
+        const isLastItem = idx === orderItemsForThis.length - 1
+        const amount = isLastItem ? (itemSubtotal + shippingFee) : itemSubtotal
         
         return {
           id: `${order.id}-${idx}`,
@@ -271,18 +320,17 @@ export async function getSupplierInvoice(
           spec: item.product_variant,
           quantity: order.type === 'purchase_return' ? -qty : qty,
           unit_price: unitCost,  // 單件成本（顯示用）
-          shipping_fee: idx === 0 ? (order.type === 'purchase_return' ? -shippingFee : shippingFee) : 0,
-          amount: order.type === 'purchase_return' ? -amount : amount,  // 使用 subtotal
+          // 運費只在最後一個 item 顯示（參考用）
+          shipping_fee: isLastItem ? (order.type === 'purchase_return' ? -shippingFee : shippingFee) : 0,
+          // 金額：最後一個 item 包含運費
+          amount: order.type === 'purchase_return' ? -amount : amount,
           note: idx === 0 ? order.note : null,
           is_settled: isSettled,
           settled_at: settledAt,
         }
       })
     } else {
-      // 無 order_items：舊訂單不顯示商品明細（只顯示訂單總成本）
-      // 不再使用 orders.quantity，因為該欄位已停止更新
-      const cost = order.cost || 0
-      
+      // 無 order_items：舊訂單使用 cost + shipping_fee 作為總金額
       return [{
         id: order.id,
         order_id: order.id,
@@ -293,7 +341,8 @@ export async function getSupplierInvoice(
         quantity: 0,  // 不使用 orders.quantity
         unit_price: 0,
         shipping_fee: order.type === 'purchase_return' ? -shippingFee : shippingFee,
-        amount: order.type === 'purchase_return' ? -cost : cost,
+        // 金額：使用 orderTotalAmount（已含運費）
+        amount: order.type === 'purchase_return' ? -orderTotalAmount : orderTotalAmount,
         note: order.note,
         is_settled: isSettled,
         settled_at: settledAt,
@@ -302,43 +351,53 @@ export async function getSupplierInvoice(
   })
   
   // 計算本期進貨和進退（所有訂單，不論結清狀態）
-  // purchase_product_subtotal = 純商品成本（不含運費）- 顯示用
+  // purchase_product_subtotal = 金額加總（已含運費）- 顯示用
   const purchase_product_subtotal = items
     .filter(i => i.type === 'purchase')
     .reduce((sum, i) => sum + i.amount, 0)
   
-  // purchase_total = 商品成本 + 運費（計算用）
-  const purchase_total = items
-    .filter(i => i.type === 'purchase')
-    .reduce((sum, i) => sum + i.amount + i.shipping_fee, 0)
+  // purchase_total = 金額加總（已含運費）
+  // 注意：現在 amount 已包含運費，不需要再加 shipping_fee
+  const purchase_total = purchase_product_subtotal
   
   const shipping_total = items
     .filter(i => i.type === 'purchase')
     .reduce((sum, i) => sum + i.shipping_fee, 0)
   
-  // return_product_subtotal = 純進退商品金額（不含運費）- 顯示用
+  // return_product_subtotal = 進退金額加總（已含運費）- 顯示用
   const return_product_subtotal = items
     .filter(i => i.type === 'purchase_return')
     .reduce((sum, i) => sum + Math.abs(i.amount), 0)
   
-  // return_total = 進退商品 + 運費（計算用）
-  const return_total = items
-    .filter(i => i.type === 'purchase_return')
-    .reduce((sum, i) => sum + Math.abs(i.amount) + Math.abs(i.shipping_fee), 0)
+  // return_total = 進退金額加總（已含運費）
+  const return_total = return_product_subtotal
   
   // 本期應付 = 進貨 - 進退
   const net_total = purchase_total - return_total
   
   // 本期已付 = 已結清訂單的金額加總（使用 order_id 去重複）
-  // 重要：訂單金額必須包含商品小計 + 運費
+  // 重要：使用 orders.cost + shipping_fee 作為訂單金額
   const settledOrderIds = new Set<string>()
-  const period_paid = items.reduce((sum, item) => {
-    if (item.is_settled && !settledOrderIds.has(item.order_id)) {
-      settledOrderIds.add(item.order_id)
-      // 找出同一訂單的所有 items 金額加總（包含運費）
-      const orderAmount = items
-        .filter(i => i.order_id === item.order_id)
-        .reduce((s, i) => s + i.amount + i.shipping_fee, 0)
+  const period_paid = (orders || []).reduce((sum, order) => {
+    if (order.is_settled && !settledOrderIds.has(order.id)) {
+      settledOrderIds.add(order.id)
+      
+      // 優先使用 orders.cost + shipping_fee
+      const orderCost = order.cost || 0
+      let orderAmount: number
+      if (orderCost > 0) {
+        orderAmount = orderCost + (order.shipping_fee || 0)
+      } else {
+        // fallback: order_items.subtotal 加總 + shipping_fee
+        const itemsForOrder = orderItems?.filter(item => item.order_id === order.id) || []
+        const itemsSubtotal = itemsForOrder.reduce((s, item) => s + (item.subtotal || 0), 0)
+        orderAmount = itemsSubtotal + (order.shipping_fee || 0)
+      }
+      
+      // 進退訂單扣除
+      if (order.type === 'purchase_return') {
+        return sum - orderAmount
+      }
       return sum + orderAmount
     }
     return sum
