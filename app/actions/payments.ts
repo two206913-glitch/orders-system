@@ -237,27 +237,51 @@ async function updateOrderPaymentStatus(
   const isReceipt = type === 'receipt'
   const orderTypes = isReceipt ? ['sale', 'sale_return'] : ['purchase', 'purchase_return']
   const partyField = isReceipt ? 'customer_name' : 'supplier'
-  const amountField = isReceipt ? 'total_price' : 'cost'
 
-  // 取得該對象的所有訂單
+  // 取得該對象的所有訂單（包含 shipping_fee 用於計算正確金額）
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, type, ' + amountField)
+    .select('id, type, total_price, cost, shipping_fee')
     .eq(partyField, partyName)
     .in('type', orderTypes)
     .order('date', { ascending: true })
 
   if (!orders || orders.length === 0) return
 
+  // 取得所有 order_items（用於計算正確金額）
+  const orderIds = orders.map(o => o.id)
+  const { data: orderItems } = orderIds.length > 0
+    ? await supabase
+        .from('order_items')
+        .select('order_id, subtotal')
+        .in('order_id', orderIds)
+    : { data: [] }
+
   // 計算總應收/應付
+  // 重要：金額 = SUM(order_items.subtotal) + shipping_fee
   const totalAmount = orders.reduce((sum, order) => {
-    const orderRecord = order as unknown as Record<string, number | string | null>
-    const amount = (orderRecord[amountField] as number) || 0
-    const orderType = orderRecord.type as string
-    if (orderType === 'sale_return' || orderType === 'purchase_return') {
-      return sum - amount
+    const itemsForOrder = orderItems?.filter(item => item.order_id === order.id) || []
+    let orderAmount: number
+    
+    if (itemsForOrder.length > 0) {
+      // 有 order_items：商品小計 + 運費
+      orderAmount = itemsForOrder.reduce((s, item) => s + (item.subtotal || 0), 0) + (order.shipping_fee || 0)
+    } else {
+      // 無 order_items：舊資料
+      if (isReceipt) {
+        // 銷貨：使用 total_price（已包含運費）
+        orderAmount = order.total_price || 0
+      } else {
+        // 進貨：使用 cost + shipping_fee
+        orderAmount = (order.cost || 0) + (order.shipping_fee || 0)
+      }
     }
-    return sum + amount
+    
+    const orderType = order.type as string
+    if (orderType === 'sale_return' || orderType === 'purchase_return') {
+      return sum - orderAmount
+    }
+    return sum + orderAmount
   }, 0)
 
   // 取得已收/已付總額（從對應的表）

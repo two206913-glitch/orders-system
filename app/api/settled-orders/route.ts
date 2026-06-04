@@ -29,24 +29,36 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ orders: [], error: error.message }, { status: 500 })
   }
   
-  // 取得這些訂單的商品明細
+  // 取得這些訂單的商品明細（包含 subtotal 用於計算正確金額）
   const { data: orderItems } = await supabase
     .from('order_items')
-    .select('order_id, product_name, product_variant, quantity')
+    .select('order_id, product_name, product_variant, quantity, subtotal')
     .in('order_id', orderIds)
   
   // 組合訂單與商品明細
-  const ordersWithItems = (orders || []).map(order => ({
-    ...order,
-    display_amount: order.type === 'sale_return' ? -(order.total_price || 0) : (order.total_price || 0),
-    items: (orderItems || [])
-      .filter(item => item.order_id === order.id)
-      .map(item => ({
+  // 重要：display_amount = SUM(order_items.subtotal) + shipping_fee
+  const ordersWithItems = (orders || []).map(order => {
+    const itemsForOrder = (orderItems || []).filter(item => item.order_id === order.id)
+    
+    // 計算正確金額：優先使用 order_items.subtotal 加總 + shipping_fee
+    let orderAmount: number
+    if (itemsForOrder.length > 0) {
+      orderAmount = itemsForOrder.reduce((s, item) => s + (item.subtotal || 0), 0) + (order.shipping_fee || 0)
+    } else {
+      // 無 order_items：使用 total_price（舊資料已包含運費）
+      orderAmount = order.total_price || 0
+    }
+    
+    return {
+      ...order,
+      display_amount: order.type === 'sale_return' ? -orderAmount : orderAmount,
+      items: itemsForOrder.map(item => ({
         product_name: item.product_name,
         product_variant: item.product_variant,
         quantity: item.quantity,
       })),
-  }))
+    }
+  })
   
   return NextResponse.json({ orders: ordersWithItems })
 }
