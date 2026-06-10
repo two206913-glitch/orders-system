@@ -150,6 +150,7 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
                 <col style={{ width: '50px' }} />   {/* 規格 */}
                 <col style={{ width: '36px' }} />   {/* 數量 */}
                 <col style={{ width: '50px' }} />   {/* 單價 */}
+                <col style={{ width: '45px' }} />   {/* 運費 */}
                 <col style={{ width: '60px' }} />   {/* 金額 */}
                 <col />                              {/* 備註 - 填滿剩餘空間 */}
               </colgroup>
@@ -161,6 +162,7 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
                   <th className="border p-1 text-left">規格</th>
                   <th className="border p-1 text-right">數量</th>
                   <th className="border p-1 text-right">單價</th>
+                  <th className="border p-1 text-right">運費</th>
                   <th className="border p-1 text-right">金額</th>
                   <th className="border p-1 text-left">備註</th>
                 </tr>
@@ -168,7 +170,7 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
               <tbody>
                 {data.items.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="border p-8 text-center text-muted-foreground">
+                    <td colSpan={9} className="border p-8 text-center text-muted-foreground">
                       此期間無交易紀錄
                     </td>
                   </tr>
@@ -187,6 +189,9 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
                         {item.quantity.toLocaleString()}
                       </td>
                       <td className="border p-1 text-right">{formatCurrency(item.unit_price)}</td>
+                      <td className={`border p-1 text-right ${item.shipping_fee < 0 ? 'text-destructive' : ''}`}>
+                        {item.shipping_fee !== 0 ? formatCurrency(item.shipping_fee) : '-'}
+                      </td>
                       <td className={`border p-1 text-right font-medium ${item.amount < 0 ? 'text-destructive' : ''}`}>
                         {formatCurrency(item.amount)}
                       </td>
@@ -280,7 +285,7 @@ export function InvoiceDocument({ open, onOpenChange, type, data }: InvoiceDocum
               <h4 className="text-sm font-semibold text-muted-foreground mb-4">本期彙總</h4>
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">{isCustomer ? '銷貨總額（含運費）' : '進貨小計'}</span>
+                  <span className="text-muted-foreground">{isCustomer ? '銷貨小計' : '進貨小計'}</span>
                   <span className="font-medium">{formatCurrency(productSubtotal ?? 0)}</span>
                 </div>
                 {(shippingTotal ?? 0) > 0 && (
